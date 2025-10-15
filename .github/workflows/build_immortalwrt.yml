@@ -7,17 +7,17 @@ on:
         description: "openWRT 仓库的拥有者 (Owner of openWRT repo)"
         type: string
         required: true
-        default: "immortalwrt"
+        default: "kmiit"
       repo:
         description: "openWRT 仓库的名字 (Name of openWRT repo)"
         type: string
         required: true
-        default: "immortalwrt"
+        default: "Redmi_AX3000_immortalwrt"
       branch:
         description: "openWRT 仓库的分支 (Branch of openWRT repo)"
         type: string
         required: true
-        default: "openwrt-24.10"
+        default: "redmi_ax3000-24.10"
       multithreading:
         description: "开启多线程编译 (Enable multithreading build)"
         type: boolean
