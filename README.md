@@ -10,7 +10,7 @@ fork这个仓库。可选编译immortalwrt或者openwrt。可以上传.config也
 
 来源：https://github.com/kmiit/Redmi_AX3000_immortalwrt
 
-新增开机自启脚本，自定义默认登录地址、WiFi设置等...
+新增开机自启脚本，文件地址在/files/etc/uci-default/99-custom,修改文件可自定义默认登录地址、WiFi设置等...
 
 ## 默认.config如下
 
