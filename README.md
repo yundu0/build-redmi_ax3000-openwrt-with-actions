@@ -6,8 +6,10 @@ fork这个仓库。可选编译immortalwrt或者openwrt。可以上传.config也
 
     勾选了很多插件容易导致编译慢以及报错，建议按需勾选。以及自己慢慢测试，我自己编译是成功的。
 
-默认仓库地址修改为：https://github.com/yundu0/Redmi_AX3000_immortalwrt，
+默认仓库地址修改为：https://github.com/yundu0/Redmi_AX3000_immortalwrt
+
 来源：https://github.com/kmiit/Redmi_AX3000_immortalwrt
+
 新增开机自启脚本，自定义默认登录地址、WiFi设置等...
 
 ## 默认.config如下
