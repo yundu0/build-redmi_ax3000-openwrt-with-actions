@@ -111,9 +111,35 @@ jobs:
           chmod +x diy.sh
           ./diy.sh
 
-      - name: 更新并下载 feeds (Update and download feeds)
+       - name: 更新并下载 feeds (Update and download feeds)
         working-directory: openWRT
-        run: ./scripts/feeds update -a && ./scripts/feeds install -a
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: 确保 .config 包含 luci、中文包与 default-settings（若未设置则追加）
+        working-directory: openWRT
+        run: |
+          test -f .config || { echo ".config not found"; exit 1; }
+          # 只在缺失时追加，避免覆盖用户交互生成的 .config
+          grep -q '^CONFIG_PACKAGE_luci=' .config || echo 'CONFIG_PACKAGE_luci=y' >> .config
+          grep -q '^CONFIG_PACKAGE_luci-i18n-base-zh-cn=' .config || echo 'CONFIG_PACKAGE_luci-i18n-base-zh-cn=y' >> .config
+          grep -q '^CONFIG_PACKAGE_default-settings=' .config || echo 'CONFIG_PACKAGE_default-settings=y' >> .config
+          grep -q '^CONFIG_PACKAGE_default-settings-chn=' .config || echo 'CONFIG_PACKAGE_default-settings-chn=y' >> .config
+          # 解析 .config 的依赖并生成最终配置
+          make defconfig
+
+      - name: "Debug: 查找 default-settings 包与显示 Makefile 片段（便于定位架构限制）"
+        working-directory: openWRT
+        run: |
+          echo "---- 查找 default-settings 的位置 ----"
+          grep -R --line-number "default-settings" package feeds || true
+          for f in $(grep -R --line-number "default-settings" package feeds | cut -d: -f1 | sort -u); do
+            echo "==> $f"
+            sed -n '1,120p' "$f" || true
+            echo "-----------------------------------"
+          done
+
 
       - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活 (Connect to the build environment using ssh)
         if: ${{inputs.ssh == true}}
