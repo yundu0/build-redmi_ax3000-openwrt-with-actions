@@ -1,0 +1,182 @@
+name: 🚀 编译 immortalwrt(Build immortalwrt)
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner:
+        description: "openWRT 仓库的拥有者 (Owner of openWRT repo)"
+        type: string
+        required: true
+        default: "zhouun"
+      repo:
+        description: "openWRT 仓库的名字 (Name of openWRT repo)"
+        type: string
+        required: true
+        default: "Redmi_AX3000_immortalwrt"
+      branch:
+        description: "openWRT 仓库的分支 (Branch of openWRT repo)"
+        type: string
+        required: true
+        default: "redmi_ax3000-24.10"
+      multithreading:
+        description: "开启多线程编译 (Enable multithreading build)"
+        type: boolean
+        default: true
+      ssh:
+        description: "使用 ssh 连接到编译环境 (Connect to the build environment using ssh)"
+        type: boolean
+        default: false
+      isFiles:
+        description: "使用files大法 (Whether to upload the etc files)"
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: 🚀 编译 (Build)
+    
+    # ⬇️ 新增：为工作流提供创建 Release 的权限
+    permissions:
+      contents: write
+
+    steps:
+      - name: Before freeing up disk space
+        run: |
+          echo "Before freeing up disk space"
+          echo "=============================================================================="
+          df -hT
+          echo "=============================================================================="
+
+      - name: Freeing up disk space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 3072
+          swap-size-mb: 1
+          remove-dotnet: "true"
+          remove-android: "true"
+          remove-haskell: "true"
+          remove-codeql: "true"
+          remove-docker-images: "true"
+
+      - name: Free up disk space complete
+        run: |
+          echo "Free up disk space complete"
+          echo "=============================================================================="
+          df -hT
+          echo "=============================================================================="
+
+      - name: 下载编译所需的依赖 (Install the software packages required for compilation)
+        run: |
+          sudo apt update
+          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
+
+      # ⬇️ 我把您建议的缓存步骤也加进来了
+      - name: 缓存编译工具链 (Cache build tools)
+        uses: actions/cache@v4
+        with:
+          path: |
+            openWRT/staging_dir
+            openWRT/tmp
+            openWRT/dl
+          # 注意：这里的 key 依赖于 .config 文件，但 .config 是在 checkout 后才复制的
+          # 为简单起见，我们先基于分支名来缓存
+          key: ${{ runner.os }}-${{ inputs.repo }}-${{ inputs.branch }}-build-cache
+          restore-keys: |
+            ${{ runner.os }}-${{ inputs.repo }}-${{ inputs.branch }}-build-cache
+
+      - name: 克隆当前仓库 (Clone current repo)
+        uses: actions/checkout@v4
+
+      - name: 克隆 openWRT 仓库 (Clone openWRT repo)
+        uses: actions/checkout@v4
+        with:
+          repository: "${{inputs.owner}}/${{inputs.repo}}"
+          ref: ${{inputs.branch}}
+          path: openWRT
+
+      - name: 复制当前仓库的配置文件到 openWRT 仓库 (Copy current repo config to openWRT repo)
+        run: cp -f .config diy.sh openWRT/
+
+      - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库 (Copy files directory)
+        if: ${{inputs.isFiles == true}}
+        run: cp -r files openWRT/files
+
+      - name: 运行 diy.sh (Run diy.sh)
+        working-directory: openWRT
+        run: |
+          chmod +x diy.sh
+          ./diy.sh
+
+      - name: 更新并下载 feeds (Update and download feeds)
+        working-directory: openWRT
+        run: ./scripts/feeds update -a && ./scripts/feeds install -a
+
+      - name: 生成完整 .config (Generate full .config)
+        working-directory: openWRT
+        run: |
+          make defconfig
+
+      - name: 使用ssh连接编译环境，限时15分钟 (Connect to the build environment using ssh)
+        if: ${{inputs.ssh == true}}
+        uses: csexton/debugger-action@master
+
+      - name: SSH调试后上传 .config (Upload .config after SSH Debug)
+        if: ${{inputs.ssh == true}}
+        uses: actions/upload-artifact@v4
+        with:
+          name: config-after-ssh-debug
+          path: openWRT/.config 
+
+      - name: 多线程编译 openWRT (Build openWRT multithreading)
+        if: ${{inputs.multithreading == true}}
+        working-directory: openWRT
+        run: make -j$(nproc) V=s
+
+      - name: 单线程编译 openWRT (Build openWRT single thread)
+        if: ${{inputs.multithreading == false}}
+        working-directory: openWRT
+        run: make -j1 V=s
+
+      # 保留 Artifact 上传，它用于临时调试和归档
+      - name: 上传编译结果到 Artifact (Upload build result to Artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: openWRT-build-result
+          path: openWRT/bin/targets
+
+      # ⬇️ ========================================
+      # ⬇️ 新增：上传到 Release 的步骤
+      # ⬇️ ========================================
+
+      - name: 准备 Release 标签和标题 (Generate release tag and name)
+        id: release_meta
+        run: |
+          echo "tag_name=Release-$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_OUTPUT
+          echo "release_name=ImmortalWrt Build $(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
+
+      - name: 上传固件到 Release (Upload firmware to Release)
+        uses: softprops/action-gh-release@v2
+        with:
+          # 使用上一步生成的标签和标题
+          tag_name: ${{ steps.release_meta.outputs.tag_name }}
+          name: ${{ steps.release_meta.outputs.release_name }}
+          
+          # Release 的描述内容，包含了本次构建的输入参数
+          body: |
+            **仓库:** `${{ inputs.owner }}/${{ inputs.repo }}`
+            **分支:** `${{ inputs.branch }}`
+            **多线程:** ${{ inputs.multithreading }}
+            **Files大法:** ${{ inputs.isFiles }}
+          
+          # 要上传的文件 (使用 glob 模式匹配 bin/targets 目录下的所有文件)
+          files: openWRT/bin/targets/**/*
+          
+          # 标记为预发布 (可选, true/false)
+          prerelease: false
+          
+          # 标记为草稿 (可选, true/false)
+          draft: false
+        env:
+          # GITHUB_TOKEN 是自动提供的
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
