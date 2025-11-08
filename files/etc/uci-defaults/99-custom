@@ -30,11 +30,11 @@ fi
 # === 配置 Wi-Fi ===
 # 2.4GHz
 if [ -n "$wlan_name0" ]; then
-  #uci set wireless.radio0.disabled='0'
-  #uci set wireless.radio0.htmode='HT40'
-  #uci set wireless.radio0.channel='auto'
-  #uci -q delete wireless.default_radio0.encryption
-  #uci -q delete wireless.default_radio0.key
+  uci set wireless.radio0.disabled='0'
+  uci set wireless.radio0.htmode='HT40'
+  uci set wireless.radio0.channel='auto'
+  uci -q delete wireless.default_radio0.encryption
+  uci -q delete wireless.default_radio0.key
   uci set wireless.default_radio0.ssid="$wlan_name0"
 
   if [ -n "$wlan_password" ] && [ ${#wlan_password} -ge 8 ]; then
@@ -49,11 +49,11 @@ fi
 
 # 5GHz
 if [ -n "$wlan_name1" ]; then
-  #uci set wireless.radio1.disabled='0'
-  #uci set wireless.radio1.htmode='VHT80'
-  #uci set wireless.radio1.channel='auto'
-  #uci -q delete wireless.default_radio1.encryption
-  #uci -q delete wireless.default_radio1.key
+  uci set wireless.radio1.disabled='0'
+  uci set wireless.radio1.htmode='VHT80'
+  uci set wireless.radio1.channel='auto'
+  uci -q delete wireless.default_radio1.encryption
+  uci -q delete wireless.default_radio1.key
   uci set wireless.default_radio1.ssid="$wlan_name1"
 
   if [ -n "$wlan_password" ] && [ ${#wlan_password} -ge 8 ]; then
