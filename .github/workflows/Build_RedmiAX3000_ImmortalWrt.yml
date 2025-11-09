@@ -29,7 +29,6 @@ on:
         description: "使用files大法 (Whether to upload the etc files)"
         type: boolean
         default: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -44,7 +43,6 @@ jobs:
         run: |
           echo "Before freeing up disk space"
           df -hT
-
       - name: "Optimize Disk Space"
         uses: "hugoalh/disk-space-optimizer-ghaction@v0.8.1"
         with:
@@ -65,7 +63,6 @@ jobs:
           npm_prune: "True"
           npm_clean: "True"
           os_swap: "True"
-
       - name: Freeing up disk space (maximizer)
         uses: easimon/maximize-build-space@master
         with:
@@ -76,12 +73,10 @@ jobs:
           remove-haskell: "true"
           remove-codeql: "true"
           remove-docker-images: "true"
-
       - name: Free up disk space complete
         run: |
           echo "Free up disk space complete"
           df -hT
-
       # -----------------------------------------------------------------
       # 2️⃣ 安装编译所需的系统依赖
       # -----------------------------------------------------------------
@@ -90,13 +85,11 @@ jobs:
           sudo apt update
           sudo apt full-upgrade -y
           sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
-
       # -----------------------------------------------------------------
       # 3️⃣ 拉取代码 & 复制 .config / diy.sh
       # -----------------------------------------------------------------
       - name: 克隆当前仓库 (Clone current repo)
         uses: actions/checkout@v4
-
       - name: 验证本地配置文件
         run: |
           echo "=== 检查关键文件是否存在 ==="
@@ -111,27 +104,26 @@ jobs:
           else
             echo "⚠️  diy.sh 文件不存在"
           fi
-
       - name: 克隆 openWRT 仓库 (Clone openWRT repo)
         uses: actions/checkout@v4
         with:
           repository: "${{ inputs.owner }}/${{ inputs.repo }}"
           ref: ${{ inputs.branch }}
           path: openWRT
-
       - name: 复制当前仓库的配置文件到 openWRT 仓库 (Copy current repo config to openWRT repo)
         run: |
           cp -f .config openWRT/
+          cp -f .config openWRT/.config.backup  # 同时创建备份
           if [ -f diy.sh ]; then
             cp -f diy.sh openWRT/
           fi
+          echo "✅ 配置文件复制完成"
 
-      - name: 备份原始 .config（用于后续对比）
+      - name: 验证配置文件复制
         working-directory: openWRT
         run: |
-          cp .config .config.backup
-          echo "✅ 已备份原始 .config 为 .config.backup"
-
+          echo "检查文件是否存在："
+          ls -la .config .config.backup 2>/dev/null || echo "某些文件不存在"
       # -----------------------------------------------------------------
       # 5️⃣ 可选的 files/ 复制（isFiles）
       # -----------------------------------------------------------------
@@ -144,7 +136,6 @@ jobs:
           else
             echo "⚠️ files 目录不存在，跳过复制"
           fi
-
       # -----------------------------------------------------------------
       # 6️⃣ 运行 diy.sh（无论是否开启 SSH，都执行）
       # -----------------------------------------------------------------
@@ -158,7 +149,6 @@ jobs:
           else
             echo "⚠️ diy.sh 不存在，跳过执行"
           fi
-
       # -----------------------------------------------------------------
       # 7️⃣ 更新并下载 feeds
       # -----------------------------------------------------------------
@@ -169,7 +159,29 @@ jobs:
           ./scripts/feeds update -a
           echo "=== 安装 feeds ==="
           ./scripts/feeds install -a
-
+      # -----------------------------------------------------------------
+      # 7.5️⃣ 检查 feeds 安装结果和已选安装包
+      # -----------------------------------------------------------------
+      - name: 检查 feeds 安装结果和已选安装包
+        working-directory: openWRT
+        run: |
+          echo "==============================="
+          echo "检查关键软件包是否安装："
+          echo "==============================="
+          find package/feeds -name "luci-app-adguardhome" || echo "❌ adguardhome 未安装"
+          find package/feeds -name "luci-theme-argon" || echo "❌ argon 未安装"
+          
+          echo ""
+          echo "==============================="
+          echo "已选安装包列表："
+          echo "==============================="
+          grep -E '^CONFIG_PACKAGE_.+=(y|m)' .config | cut -d'=' -f1 | sed 's/CONFIG_PACKAGE_//' | sort
+          
+          echo ""
+          echo "==============================="
+          echo "已选 luci-app 包列表："
+          echo "==============================="
+          grep -E '^CONFIG_PACKAGE_luci-app.+=(y|m)' .config | cut -d'=' -f1 | sed 's/CONFIG_PACKAGE_//' | sort
       # -----------------------------------------------------------------
       # 8️⃣ **检查 .config**（日志中直接打印，帮助快速定位）
       # -----------------------------------------------------------------
@@ -183,7 +195,6 @@ jobs:
           head -n 30 .config
           echo "===== 包含的主题和插件（grep 示例） ====="
           grep -E 'luci-theme|luci-app|CONFIG_PACKAGE_' .config || echo "未检测到关键包"
-
       # -----------------------------------------------------------------
       # 9️⃣ 上传 .config（原始 + 处理后）供对比
       # -----------------------------------------------------------------
@@ -191,18 +202,15 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: config-compare
-          path: |
-            openWRT/.config.backup   # 复制进来的原始 .config（未经过 diy.sh）
-            openWRT/.config          # 经 diy.sh / feeds / defconfig 之后的 .config
+          path: openWRT/.config*
           include-hidden-files: true
-
+        continue-on-error: true
       # -----------------------------------------------------------------
       # 10️⃣ 可选的 SSH 调试（调试结束后继续往下执行）
       # -----------------------------------------------------------------
       - name: 使用 ssh 连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活
         if: ${{ inputs.ssh }}
         uses: csexton/debugger-action@master
-
       - name: SSH 调试后上传配置文件（调试期间可能手动改了 .config）
         if: ${{ inputs.ssh }}
         uses: actions/upload-artifact@v4
@@ -212,7 +220,6 @@ jobs:
             openWRT/.config
             openWRT/feeds.conf.default
           include-hidden-files: true
-
       # -----------------------------------------------------------------
       # 11️⃣ 编译（多线程 / 单线程）
       # -----------------------------------------------------------------
@@ -223,14 +230,12 @@ jobs:
           echo "=== 开始多线程编译 ==="
           echo "使用线程数：$(nproc)"
           make -j$(nproc) V=s
-
       - name: 单线程编译 openWRT (Build openWRT single thread)
         if: ${{ !inputs.multithreading && !inputs.ssh }}
         working-directory: openWRT
         run: |
           echo "=== 开始单线程编译 ==="
           make -j1 V=s
-
       # -----------------------------------------------------------------
       # 12️⃣ 上传编译前的 config（非 SSH 场景下的 artifact）
       # -----------------------------------------------------------------
@@ -243,7 +248,6 @@ jobs:
             openWRT/.config
             openWRT/feeds.conf.default
           include-hidden-files: true
-
       # -----------------------------------------------------------------
       # 13️⃣ 上传编译产物
       # -----------------------------------------------------------------
@@ -253,7 +257,6 @@ jobs:
         with:
           name: openwrt-build-result
           path: openWRT/bin/targets
-
       # -----------------------------------------------------------------
       # 14️⃣ Release（保持原有逻辑）
       # -----------------------------------------------------------------
@@ -262,7 +265,6 @@ jobs:
         run: |
           echo "tag_name=Release-$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_OUTPUT
           echo "release_name=ImmortalWrt Build $(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
-
       - name: 上传固件到 Release
         uses: softprops/action-gh-release@v2
         with:
