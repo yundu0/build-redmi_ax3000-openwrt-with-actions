@@ -113,17 +113,10 @@ jobs:
       - name: 复制当前仓库的配置文件到 openWRT 仓库 (Copy current repo config to openWRT repo)
         run: |
           cp -f .config openWRT/
-          cp -f .config openWRT/.config.backup  # 同时创建备份
           if [ -f diy.sh ]; then
             cp -f diy.sh openWRT/
           fi
           echo "✅ 配置文件复制完成"
-
-      - name: 验证配置文件复制
-        working-directory: openWRT
-        run: |
-          echo "检查文件是否存在："
-          ls -la .config .config.backup 2>/dev/null || echo "某些文件不存在"
       # -----------------------------------------------------------------
       # 5️⃣ 可选的 files/ 复制（isFiles）
       # -----------------------------------------------------------------
@@ -173,13 +166,11 @@ jobs:
           find package/feeds -name "luci-app-socat" || echo "❌ socat 未安装"
           find package/feeds -name "luci-theme-ttyd" || echo "❌ ttyd 未安装"
           find package/feeds -name "luci-app-turboacc" || echo "❌ turboacc 未安装"
-          
           echo ""
           echo "==============================="
           echo "已选安装包列表："
           echo "==============================="
           grep -E '^CONFIG_PACKAGE_.+=(y|m)' .config | cut -d'=' -f1 | sed 's/CONFIG_PACKAGE_//' | sort
-          
           echo ""
           echo "==============================="
           echo "已选 luci-app 包列表："
@@ -194,18 +185,19 @@ jobs:
           echo "===== .config 文件大小 & 行数 ====="
           ls -lh .config
           wc -l .config
-          echo "===== 包含的主题和插件（grep 示例） ====="
-          grep -E 'luci-theme|luci-app|CONFIG_PACKAGE_' .config || echo "未检测到关键包"
+          # echo "===== 包含的主题和插件（grep 示例） ====="
+          # grep -E 'luci-theme|luci-app|CONFIG_PACKAGE_' .config || echo "未检测到关键包"
+          echo "===== 关键软件包检查 ====="
+          grep -E 'CONFIG_PACKAGE_(luci-app-argon|luci-app-filemanager|luci-app-socat|luci-theme-ttyd|luci-app-turboacc)=' .config || echo "关键包配置未找到！"
       # -----------------------------------------------------------------
-      # 9️⃣ 上传 .config（原始 + 处理后）供对比
+      # 9️⃣ 上传编译使用的配置文件
       # -----------------------------------------------------------------
-      - name: 上传原始 + 编译前的 .config（两份 artifact 用于对比）
+      - name: 上传编译使用的配置文件
         uses: actions/upload-artifact@v4
         with:
-          name: config-compare
-          path: openWRT/.config*
+          name: config-used-for-build
+          path: openWRT/.config
           include-hidden-files: true
-        continue-on-error: true
       # -----------------------------------------------------------------
       # 10️⃣ 可选的 SSH 调试（调试结束后继续往下执行）
       # -----------------------------------------------------------------
