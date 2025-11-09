@@ -128,13 +128,30 @@ jobs:
       - name: 更新并下载 feeds (Update and download feeds)
         working-directory: openWRT
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
+      - name: 检查 feeds 安装结果
+        working-directory: openWRT
+        run: |
+          find package/feeds -name "luci-theme-argon" || echo "argon 未安装"
+          find package/feeds -name "luci-app-filemanager" || echo "filemanager 未安装"
+          find package/feeds -name "luci-app-socat" || echo "socat 未安装"
+          find package/feeds -name "luci-app-turboacc" || echo "turboacc 未安装"
       - name: 📏 检查 .config（feeds 完成后）
         working-directory: openWRT
         run: |
           echo "=== before make ==="
           ls -lh .config
           wc -l .config
-          grep -E 'CONFIG_PACKAGE_(luci-app-adguardhome|luci-theme-argon)=' .config || echo "关键包不在！"
+          grep -E 'CONFIG_PACKAGE_(luci-app-argon|luci-app-filemanager|luci-app-socat|luci-theme-ttyd|luci-app-turboacc)=' .config || echo "关键包不在！"
+          
+      - name: 复制配置文件（在 feeds 之后）
+        run: cp -f .config openWRT/
+      - name: 📏 检查 .config（重新复制后）
+        working-directory: openWRT
+        run: |
+          echo "=== before make ==="
+          ls -lh .config
+          wc -l .config
+          grep -E 'CONFIG_PACKAGE_(luci-app-argon|luci-app-filemanager|luci-app-socat|luci-theme-ttyd|luci-app-turboacc)=' .config || echo "关键包不在！"
           
       - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活 (Connect to the build environment using ssh)
         if: ${{inputs.ssh == true}}
