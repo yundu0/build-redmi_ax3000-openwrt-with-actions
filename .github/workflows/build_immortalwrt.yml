@@ -106,7 +106,7 @@ jobs:
           echo "=== after copy ==="
           ls -lh .config
           wc -l .config
-          head -n 15 .config || true
+          echo "文件检查完成"
           
       - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库 (If you choose to upload the etc files, copy the etc directory to the openWRT repo)
         if: ${{inputs.isFiles == true}}
@@ -123,7 +123,7 @@ jobs:
           echo "=== after diy.sh ==="
           ls -lh .config
           wc -l .config
-          head -n 15 .config || true
+          echo "文件检查完成"
           
       - name: 更新并下载 feeds (Update and download feeds)
         working-directory: openWRT
@@ -141,7 +141,9 @@ jobs:
           echo "=== before make ==="
           ls -lh .config
           wc -l .config
+          echo "=== 检查关键软件包配置 ==="
           grep -E 'CONFIG_PACKAGE_(luci-app-argon|luci-app-filemanager|luci-app-socat|luci-theme-ttyd|luci-app-turboacc)=' .config || echo "关键包不在！"
+          echo "文件检查完成"
           
       - name: 复制配置文件（在 feeds 之后）
         run: cp -f .config openWRT/
@@ -151,7 +153,9 @@ jobs:
           echo "=== before make ==="
           ls -lh .config
           wc -l .config
+          echo "=== 检查关键软件包配置 ==="
           grep -E 'CONFIG_PACKAGE_(luci-app-argon|luci-app-filemanager|luci-app-socat|luci-theme-ttyd|luci-app-turboacc)=' .config || echo "关键包不在！"
+          echo "文件检查完成"
           
       - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活 (Connect to the build environment using ssh)
         if: ${{inputs.ssh == true}}
