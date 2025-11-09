@@ -194,8 +194,6 @@ jobs:
           echo "===== .config 文件大小 & 行数 ====="
           ls -lh .config
           wc -l .config
-          echo "===== 前 30 行（关键选项） ====="
-          head -n 30 .config
           echo "===== 包含的主题和插件（grep 示例） ====="
           grep -E 'luci-theme|luci-app|CONFIG_PACKAGE_' .config || echo "未检测到关键包"
       # -----------------------------------------------------------------
