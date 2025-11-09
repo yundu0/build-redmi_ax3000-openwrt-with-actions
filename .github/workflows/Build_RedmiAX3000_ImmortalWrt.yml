@@ -168,8 +168,11 @@ jobs:
           echo "==============================="
           echo "检查关键软件包是否安装："
           echo "==============================="
-          find package/feeds -name "luci-app-adguardhome" || echo "❌ adguardhome 未安装"
-          find package/feeds -name "luci-theme-argon" || echo "❌ argon 未安装"
+          find package/feeds -name "luci-app-argon" || echo "❌ argon 未安装"
+          find package/feeds -name "luci-app-filemanager" || echo "❌ filemanager 未安装"
+          find package/feeds -name "luci-app-socat" || echo "❌ socat 未安装"
+          find package/feeds -name "luci-theme-ttyd" || echo "❌ ttyd 未安装"
+          find package/feeds -name "luci-app-turboacc" || echo "❌ turboacc 未安装"
           
           echo ""
           echo "==============================="
