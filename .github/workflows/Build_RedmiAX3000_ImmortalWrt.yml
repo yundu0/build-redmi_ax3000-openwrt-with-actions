@@ -111,7 +111,12 @@ jobs:
           if [ -f diy.sh ]; then
             cp -f diy.sh openWRT/
           fi
-      - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库 (If you choose to upload the etc files, copy the etc directory to the openWRT repo)
+      - name: 备份原始配置文件
+        working-directory: openWRT
+        run: |
+          cp .config .config.backup
+          echo "✅ 已备份原始 .config 文件"
+      - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库
         if: ${{inputs.isFiles == true}}
         run: |
           if [ -d files ]; then
@@ -138,6 +143,11 @@ jobs:
           ./scripts/feeds update -a
           echo "=== 安装 feeds ==="
           ./scripts/feeds install -a
+      - name: 恢复原始配置文件用于上传
+        working-directory: openWRT
+        run: |
+          cp .config.backup .config
+          echo "✅ 已恢复原始 .config 文件用于上传"
       - name: 上传编译前的配置文件到 Artifact
         if: ${{ inputs.ssh == false }}
         uses: actions/upload-artifact@v4
