@@ -29,27 +29,40 @@ on:
         description: "使用files大法 (Whether to upload the etc files)"
         type: boolean
         default: false
-      useOldConfig:
-        description: "使用 oldconfig 更新配置 (Use oldconfig to update config)"
-        type: boolean
-        default: false
-
 jobs:
   build:
     runs-on: ubuntu-latest
     name: 🚀 编译 (Build)
     permissions:
       contents: write
-      
     steps:
-      - name: 显示磁盘空间使用情况
+      - name: Before freeing up disk space
         run: |
           echo "Before freeing up disk space"
           echo "=============================================================================="
           df -hT
           echo "=============================================================================="
-
-      - name: 释放磁盘空间
+      - name: "Optimize Disk Space"
+        uses: "hugoalh/disk-space-optimizer-ghaction@v0.8.1"
+        with:
+          operate_sudo: "True"
+          general_include: ".+"
+          general_exclude: |-
+            ^GCC$
+            ^G\+\+$
+            Clang
+            LLVM
+          docker_include: ".+"
+          docker_prune: "True"
+          docker_clean: "True"
+          apt_prune: "True"
+          apt_clean: "True"
+          homebrew_prune: "True"
+          homebrew_clean: "True"
+          npm_prune: "True"
+          npm_clean: "True"
+          os_swap: "True"
+      - name: Freeing up disk space
         uses: easimon/maximize-build-space@master
         with:
           root-reserve-mb: 3072
@@ -59,198 +72,109 @@ jobs:
           remove-haskell: "true"
           remove-codeql: "true"
           remove-docker-images: "true"
-
-      - name: 磁盘空间清理完成
+      - name: Free up disk space complete
         run: |
           echo "Free up disk space complete"
           echo "=============================================================================="
           df -hT
           echo "=============================================================================="
-
-      - name: 安装编译依赖
+      - name: 下载编译所需的依赖 (Install the software packages required for compilation)
         run: |
           sudo apt update
+          sudo apt full-upgrade -y
           sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
-
-      - name: 克隆当前仓库
+      - name: 克隆当前仓库 (Clone current repo)
         uses: actions/checkout@v4
-
       - name: 验证本地配置文件
         run: |
-          echo "=== 当前仓库文件列表 ==="
-          ls -la
-          echo ""
-          
           echo "=== 检查关键文件是否存在 ==="
           if [ -f .config ]; then
             echo "✅ .config 文件存在"
-            echo "文件大小：$(wc -c < .config) 字节"
-            echo "配置项数量：$(grep -c '^CONFIG_' .config)"
-            echo "前10行内容："
-            head -10 .config
           else
             echo "❌ 错误：.config 文件不存在！"
-            echo "当前目录文件："
-            ls -la
             exit 1
           fi
-
-      - name: 克隆 openWRT 仓库
+          if [ -f diy.sh ]; then
+            echo "✅ diy.sh 文件存在"
+          else
+            echo "⚠️  diy.sh 文件不存在"
+          fi
+      - name: 克隆 openWRT 仓库 (Clone openWRT repo)
         uses: actions/checkout@v4
         with:
           repository: "${{inputs.owner}}/${{inputs.repo}}"
           ref: ${{inputs.branch}}
           path: openWRT
-
-      - name: 复制配置文件到 openWRT 仓库
+      - name: 复制当前仓库的配置文件到 openWRT 仓库  (Copy current repo config to openWRT repo)
         run: |
-          echo "=== 复制配置文件 ==="
-          cd openWRT
-          
-          # 从上级目录复制配置文件
-          if [ -f ../.config ]; then
-            cp -f ../.config ./
-            chmod 644 .config
-            echo "✅ 已复制 .config 文件"
-          else
-            echo "❌ 错误：源 .config 文件不存在"
-            exit 1
+          cp -f .config openWRT/
+          if [ -f diy.sh ]; then
+            cp -f diy.sh openWRT/
           fi
-          
-          if [ -f ../diy.sh ]; then
-            cp -f ../diy.sh ./
-            chmod +x diy.sh
-            echo "✅ 已复制 diy.sh 文件"
-          fi
-
-      - name: 验证复制后的配置文件
-        working-directory: openWRT
-        run: |
-          echo "=== 验证复制结果 ==="
-          if [ -f .config ]; then
-            echo ".config 文件存在"
-            echo "文件大小：$(wc -c < .config) 字节"
-            echo "配置项数量：$(grep -c '^CONFIG_' .config)"
-            echo "前10行内容："
-            head -10 .config
-          else
-            echo "❌ 错误：.config 文件复制失败"
-            exit 1
-          fi
-
-      - name: 如果选择了上传 files 大法，则复制 files 目录
+      - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库 (If you choose to upload the etc files, copy the etc directory to the openWRT repo)
         if: ${{inputs.isFiles == true}}
         run: |
-          echo "=== 复制 files 目录 ==="
           if [ -d files ]; then
             cp -r files openWRT/
             echo "✅ 已复制 files 目录"
           else
-            echo "❌ 错误：当前目录下没有 files 目录"
-            exit 1
+            echo "⚠️ files 目录不存在，跳过复制"
           fi
-
-      - name: 运行 diy.sh 脚本
+      - name: 运行 diy.sh (Run diy.sh)
         if: ${{ inputs.ssh == false }}
         working-directory: openWRT
         run: |
-          echo "=== 运行 diy.sh 脚本 ==="
           if [ -f diy.sh ]; then
+            chmod +x diy.sh
             ./diy.sh
             echo "✅ diy.sh 执行完成"
           else
-            echo "⚠️  diy.sh 不存在，跳过执行"
+            echo "⚠️ diy.sh 不存在，跳过执行"
           fi
-
-      - name: 更新并下载 feeds
+      - name: 更新并下载 feeds (Update and download feeds)
         working-directory: openWRT
         run: |
           echo "=== 更新 feeds ==="
           ./scripts/feeds update -a
           echo "=== 安装 feeds ==="
           ./scripts/feeds install -a
-
-      - name: 处理配置文件
-        working-directory: openWRT
-        run: |
-          echo "=== 处理配置文件 ==="
-          echo "当前 .config 状态："
-          echo "文件大小：$(wc -c < .config) 字节"
-          echo "配置项数量：$(grep -c '^CONFIG_' .config)"
-          
-          # 根据输入参数决定如何处理配置文件
-          if [ "${{ inputs.useOldConfig }}" == "true" ]; then
-            echo "=== 使用 oldconfig 更新配置 ==="
-            # 使用 oldconfig 更新配置以适应新源码，但仍保持你的配置
-            yes "" | make oldconfig
-            echo "✅ oldconfig 执行完成"
-          else
-            echo "=== 跳过配置文件重新生成，使用原始配置 ==="
-            # 不执行任何配置生成命令，直接使用你提供的配置
-          fi
-          
-          echo "=== 最终 .config 状态 ==="
-          echo "文件大小：$(wc -c < .config) 字节"
-          echo "配置项数量：$(grep -c '^CONFIG_' .config)"
-
-      - name: 验证最终配置文件
-        working-directory: openWRT
-        run: |
-          echo "=== 最终配置文件验证 ==="
-          if [ -f .config ]; then
-            echo "✅ .config 文件存在"
-            echo "文件大小：$(wc -c < .config) 字节"
-            echo "配置项数量：$(grep -c '^CONFIG_' .config)"
-            
-            # 检查一些关键配置项是否存在
-            echo "检查关键配置项："
-            grep "CONFIG_TARGET.*DEVICE" .config || echo "未找到设备配置"
-            grep "CONFIG_PACKAGE_luci" .config || echo "未找到 LuCI 配置"
-          else
-            echo "❌ 错误：.config 文件丢失"
-            exit 1
-          fi
-
-      - name: 使用ssh连接编译环境
+      - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活 (Connect to the build environment using ssh)
         if: ${{inputs.ssh == true}}
         uses: csexton/debugger-action@master
-
-      - name: SSH调试后上传 .config
+      - name: SSH调试后上传配置文件
         if: ${{inputs.ssh == true}}
         uses: actions/upload-artifact@v4
         with:
           name: config-after-ssh-debug
-          path: openWRT/.config
-
-      - name: 多线程编译 openWRT
-        if: ${{inputs.multithreading == true && inputs.ssh == false}}
+          path: |
+            openWRT/.config
+            openWRT/feeds.conf.default
+          include-hidden-files: true
+      - name: 多线程编译 openWRT (Build openWRT multithreading)
+        if: ${{ inputs.multithreading == true && inputs.ssh == false }}
         working-directory: openWRT
         run: |
           echo "=== 开始多线程编译 ==="
           echo "使用线程数：$(nproc)"
           make -j$(nproc) V=s
-
-      - name: 单线程编译 openWRT
-        if: ${{inputs.multithreading == false && inputs.ssh == false}}
+      - name: 单线程编译 openWRT (Build openWRT single thread)
+        if: ${{ inputs.multithreading == false && inputs.ssh == false }}
         working-directory: openWRT
         run: |
           echo "=== 开始单线程编译 ==="
           make -j1 V=s
-
-      - name: 上传编译结果到 Artifact
+      - name: 上传编译结果到 Artifact (Upload build result to Artifact)
         if: ${{ inputs.ssh == false }}
         uses: actions/upload-artifact@v4
         with:
-          name: openWRT-build-result
+          name: openwrt-build-result
           path: openWRT/bin/targets
-
       - name: 准备 Release 标签和标题
         if: ${{ inputs.ssh == false }}
         id: release_meta
         run: |
           echo "tag_name=Release-$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_OUTPUT
           echo "release_name=ImmortalWrt Build $(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
-
       - name: 上传固件到 Release
         if: ${{ inputs.ssh == false }}
         uses: softprops/action-gh-release@v2
@@ -262,9 +186,10 @@ jobs:
             **分支:** `${{ inputs.branch }}`
             **多线程:** ${{ inputs.multithreading }}
             **Files大法:** ${{ inputs.isFiles }}
-            **使用 OldConfig:** ${{ inputs.useOldConfig }}
             **编译时间:** $(date +'%Y-%m-%d %H:%M:%S')
-          files: openWRT/bin/targets/**/*
+          files: |
+            openWRT/bin/targets/**/*
+            openWRT/.config
           prerelease: false
           draft: false
         env:
