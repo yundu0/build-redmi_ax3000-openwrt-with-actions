@@ -179,13 +179,11 @@ jobs:
           name: openwrt-build-result
           path: openWRT/bin/targets
       - name: 准备 Release 标签和标题
-        if: ${{ inputs.ssh == false }}
         id: release_meta
         run: |
           echo "tag_name=Release-$(date +'%Y-%m-%d-%H-%M')" >> $GITHUB_OUTPUT
           echo "release_name=ImmortalWrt Build $(date +'%Y-%m-%d %H:%M')" >> $GITHUB_OUTPUT
       - name: 上传固件到 Release
-        if: ${{ inputs.ssh == false }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_meta.outputs.tag_name }}
