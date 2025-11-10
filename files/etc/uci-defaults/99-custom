@@ -10,7 +10,15 @@ pppoe_password=""
 hostname="ImmortalWrt"
 
 echo "开始执行首次配置脚本..."
-
+# === 设置led ===
+uci add system led # =cfg048bba
+uci set system.@led[-1].name='Internet'
+uci set system.@led[-1].sysfs='blue:internet'
+uci set system.@led[-1].trigger='netdev'
+uci set system.@led[-1].dev='wan'
+uci add_list system.@led[-1].mode='link'
+uci add_list system.@led[-1].mode='tx'
+uci add_list system.@led[-1].mode='rx'
 # === 设置管理员密码 ===
 if [ -n "$root_password" ]; then
   (echo "$root_password"; sleep 1; echo "$root_password") | passwd >/dev/null 2>&1
