@@ -7,17 +7,17 @@ on:
         description: "openWRT 仓库的拥有者 (Owner of openWRT repo)"
         type: string
         required: true
-        default: "zhouun"
+        default: "immortalwrt"
       repo:
         description: "openWRT 仓库的名字 (Name of openWRT repo)"
         type: string
         required: true
-        default: "Redmi_AX3000_immortalwrt"
+        default: "immortalwrt"
       branch:
         description: "openWRT 仓库的分支 (Branch of openWRT repo)"
         type: string
         required: true
-        default: "redmi_ax3000-24.10"
+        default: "openwrt-24.10"
       multithreading:
         description: "开启多线程编译 (Enable multithreading build)"
         type: boolean
@@ -100,14 +100,7 @@ jobs:
 
       - name: 复制当前仓库的配置文件到 openWRT 仓库  (Copy current repo config to openWRT repo)
         run: cp -f .config diy.sh openWRT/
-      - name: 📏 检查 .config（复制后）
-        working-directory: openWRT
-        run: |
-          echo "=== after copy ==="
-          ls -lh .config
-          wc -l .config
-          echo "文件检查完成"
-          
+
       - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库 (If you choose to upload the etc files, copy the etc directory to the openWRT repo)
         if: ${{inputs.isFiles == true}}
         run: cp -r files openWRT/files
@@ -117,46 +110,11 @@ jobs:
         run: |
           chmod +x diy.sh
           ./diy.sh
-      - name: 📏 检查 .config（diy.sh 之后）
-        working-directory: openWRT
-        run: |
-          echo "=== after diy.sh ==="
-          ls -lh .config
-          wc -l .config
-          echo "文件检查完成"
-          
+
       - name: 更新并下载 feeds (Update and download feeds)
         working-directory: openWRT
         run: ./scripts/feeds update -a && ./scripts/feeds install -a
-      - name: 检查 feeds 安装结果
-        working-directory: openWRT
-        run: |
-          find package/feeds -name "luci-theme-argon" || echo "argon 未安装"
-          find package/feeds -name "luci-app-filemanager" || echo "filemanager 未安装"
-          find package/feeds -name "luci-app-socat" || echo "socat 未安装"
-          find package/feeds -name "luci-app-turboacc" || echo "turboacc 未安装"
-      - name: 📏 检查 .config（feeds 完成后）
-        working-directory: openWRT
-        run: |
-          echo "=== before make ==="
-          ls -lh .config
-          wc -l .config
-          echo "=== 检查关键软件包配置 ==="
-          grep -E 'CONFIG_PACKAGE_(luci-app-argon|luci-app-filemanager|luci-app-socat|luci-theme-ttyd|luci-app-turboacc)=' .config || echo "关键包不在！"
-          echo "文件检查完成"
-          
-      - name: 复制配置文件（在 feeds 之后）
-        run: cp -f .config openWRT/
-      - name: 📏 检查 .config（重新复制后）
-        working-directory: openWRT
-        run: |
-          echo "=== before make ==="
-          ls -lh .config
-          wc -l .config
-          echo "=== 检查关键软件包配置 ==="
-          grep -E 'CONFIG_PACKAGE_(luci-app-argon|luci-app-filemanager|luci-app-socat|luci-theme-ttyd|luci-app-turboacc)=' .config || echo "关键包不在！"
-          echo "文件检查完成"
-          
+
       - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活 (Connect to the build environment using ssh)
         if: ${{inputs.ssh == true}}
         uses: csexton/debugger-action@master
