@@ -19,7 +19,7 @@ on:
         required: true
         default: "redmi_ax3000-24.10"
       ssh:
-        description: "SSH 连接调试 (一般不勾选，除非编译失败需要排查)"
+        description: "SSH 连接调试"
         type: boolean
         default: false
 
@@ -34,13 +34,10 @@ jobs:
       contents: write
     
     steps:
-      - name: ⬇️ 检出代码 (Checkout)
+      - name: ⬇️ 检出代码
         uses: actions/checkout@v4
 
-      # -----------------------------------------------------------------
-      # 1️⃣ 核心优化：暴力清理磁盘空间 (解决 No space left on device)
-      # -----------------------------------------------------------------
-      - name: 🧹 释放磁盘空间 (Free Disk Space)
+      - name: 🧹 释放磁盘空间
         uses: jlumbroso/free-disk-space@main
         with:
           tool-cache: true
@@ -51,9 +48,6 @@ jobs:
           docker-images: true
           swap-storage: true
 
-      # -----------------------------------------------------------------
-      # 2️⃣ 初始化环境 (Ubuntu 22.04 专用依赖)
-      # -----------------------------------------------------------------
       - name: 📦 安装编译依赖
         run: |
           sudo apt update
@@ -65,9 +59,6 @@ jobs:
           python3 python3-pip python3-docutils qemu-utils re2c rsync scons squashfs-tools subversion swig \
           texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
 
-      # -----------------------------------------------------------------
-      # 3️⃣ 拉取源码
-      # -----------------------------------------------------------------
       - name: ⬇️ 克隆 OpenWrt 源码
         uses: actions/checkout@v4
         with:
@@ -75,20 +66,12 @@ jobs:
           ref: ${{ inputs.branch }}
           path: openWRT
 
-      # -----------------------------------------------------------------
-      # 4️⃣ 加载自定义配置 (自动处理 files, diy.sh, .config)
-      # -----------------------------------------------------------------
       - name: 📂 加载自定义配置
         run: |
-          # 1. 自动处理 files 目录 (如果仓库里有，就复制)
           if [ -d "files" ]; then
             echo "✅ 检测到 files 目录，正在复制..."
             cp -r files openWRT/files
-          else
-            echo "ℹ️ 未检测到 files 目录，跳过."
           fi
-
-          # 2. 自动处理 diy.sh (如果仓库里有，就执行)
           if [ -f "diy.sh" ]; then
             echo "✅ 检测到 diy.sh，正在执行..."
             chmod +x diy.sh
@@ -96,11 +79,7 @@ jobs:
             cd openWRT
             ./diy.sh
             cd ..
-          else
-            echo "ℹ️ 未检测到 diy.sh，跳过."
           fi
-
-          # 3. 处理 .config (这是核心)
           if [ -f ".config" ]; then
             echo "✅ 检测到 .config，正在复制..."
             cp .config openWRT/.config
@@ -108,69 +87,42 @@ jobs:
             echo "❌ 警告：仓库中没有 .config 文件！将使用默认配置。"
           fi
 
-      # -----------------------------------------------------------------
-      # 5️⃣ 更新 Feeds & 生成最终配置 (make defconfig)
-      # -----------------------------------------------------------------
       - name: 🔄 更新 Feeds & 生成配置
         working-directory: openWRT
         run: |
-          # 更新并安装 Feeds
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          
-          # 【重要】修复依赖关系，展开配置
-          # 这一步能自动修复 .config 中的旧配置项，防止编译失败
           make defconfig
 
-      # -----------------------------------------------------------------
-      # 6️⃣ 下载软件包 (预下载以节省编译时间)
-      # -----------------------------------------------------------------
       - name: ⬇️ 下载软件包
         working-directory: openWRT
         run: |
           make download -j8
-          # 删除下载失败的空文件，防止阻塞编译
           find dl -size -1024c -exec ls -l {} \;
           find dl -size -1024c -exec rm -f {} \;
 
-      # -----------------------------------------------------------------
-      # 7️⃣ SSH 调试 (可选，仅当 inputs.ssh 为 true 时触发)
-      # -----------------------------------------------------------------
       - name: 📡 SSH 连接调试
         uses: csexton/debugger-action@master
         if: ${{ inputs.ssh }}
 
-      # -----------------------------------------------------------------
-      # 8️⃣ 编译 (自动降级策略：多线程失败 -> 自动转单线程)
-      # -----------------------------------------------------------------
       - name: 🚀 开始编译
         working-directory: openWRT
         run: |
           echo "=== 编译开始 ==="
-          # 尝试多线程编译，如果失败则回退到单线程详细日志模式
           make -j$(nproc) || make -j1 V=s
           echo "=== 编译结束 ==="
 
-      # -----------------------------------------------------------------
-      # 9️⃣ 整理产物 (只提取固件和配置文件)
-      # -----------------------------------------------------------------
       - name: 📦 整理编译产物
         id: organize
         if: success()
         run: |
           mkdir -p firmware
-          # 提取固件文件
           find openWRT/bin/targets -name "*.bin" -exec cp {} firmware/ \;
           find openWRT/bin/targets -name "*.img.gz" -exec cp {} firmware/ \;
-          # 提取配置文件供下次使用
           cp openWRT/.config firmware/build.config
-          
           echo "status=success" >> $GITHUB_OUTPUT
 
-      # -----------------------------------------------------------------
-      # 🔟 上传 Artifact & 发布 Release
-      # -----------------------------------------------------------------
-      - name: 📤 上传固件目录到 Artifact
+      - name: 📤 上传固件
         uses: actions/upload-artifact@v4
         if: steps.organize.outputs.status == 'success'
         with:
@@ -181,4 +133,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: steps.organize.outputs.status == 'success'
         with:
-          tag_name: Release-${{ env.
+          tag_name: Release-${{ env.BUILD_DATE }}
+          files: firmware/*
+          body: |
+            **编译状态**: ✅ 成功
+            **源码仓库**: `${{ inputs.owner }}/${{ inputs.repo }}`
+            **分支**: `${{ inputs.branch }}`
+            **时间**: ${{ env.BUILD_DATE }}
+        env:
+          BUILD_DATE: $(date +'%Y.%m.%d-%H%M')
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
