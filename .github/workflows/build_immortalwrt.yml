@@ -1,146 +1,182 @@
-name: 🚀 编译 immortalwrt(Build immortalwrt)
+name: 🚀 编译 Build_RedmiAX3000_ImmortalWrt
 
 on:
   workflow_dispatch:
     inputs:
       owner:
-        description: "openWRT 仓库的拥有者 (Owner of openWRT repo)"
+        description: "openWRT 仓库的拥有者"
         type: string
         required: true
-        default: "immortalwrt"
+        default: "zhouun"
       repo:
-        description: "openWRT 仓库的名字 (Name of openWRT repo)"
+        description: "openWRT 仓库的名字"
         type: string
         required: true
-        default: "immortalwrt"
+        default: "Redmi_AX3000_immortalwrt"
       branch:
-        description: "openWRT 仓库的分支 (Branch of openWRT repo)"
+        description: "openWRT 仓库的分支"
         type: string
         required: true
-        default: "openwrt-24.10"
-      multithreading:
-        description: "开启多线程编译 (Enable multithreading build)"
-        type: boolean
-        default: true
+        default: "redmi_ax3000-24.10"
       ssh:
-        description: "使用 ssh 连接到编译环境 (Connect to the build environment using ssh)"
+        description: "SSH 调试 (tmate) - 首次建议开启，配置完后继续编译"
         type: boolean
         default: false
       isFiles:
-        description: "使用files大法 (Whether to upload the etc files)"
+        description: "启用 files 目录注入 (需仓库根目录有 files 文件夹)"
         type: boolean
         default: false
+
+env:
+  TZ: Asia/Shanghai
 
 jobs:
   build:
     runs-on: ubuntu-latest
     name: 🚀 编译 (Build)
+    permissions:
+      contents: write
+
     steps:
-      - name: Before freeing up disk space
-        run: |
-          echo "Before freeing up disk space"
-          echo "=============================================================================="
-          df -hT
-          echo "=============================================================================="
-
-      - name: "Optimize Disk Space"
-        uses: "hugoalh/disk-space-optimizer-ghaction@v0.8.1"
-        with:
-          operate_sudo: "True"
-          general_include: ".+"
-          general_exclude: |-
-            ^GCC$
-            ^G\+\+$
-            Clang
-            LLVM
-          docker_include: ".+"
-          docker_prune: "True"
-          docker_clean: "True"
-          apt_prune: "True"
-          apt_clean: "True"
-          homebrew_prune: "True"
-          homebrew_clean: "True"
-          npm_prune: "True"
-          npm_clean: "True"
-          os_swap: "True"
-
-      - name: Freeing up disk space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 3072
-          swap-size-mb: 1
-          remove-dotnet: "true"
-          remove-android: "true"
-          remove-haskell: "true"
-          remove-codeql: "true"
-          remove-docker-images: "true"
-
-      - name: Free up disk space complete
-        run: |
-          echo "Free up disk space complete"
-          echo "=============================================================================="
-          df -hT
-          echo "=============================================================================="
-
-      - name: 下载编译所需的依赖 (Install the software packages required for compilation)
-        run: |
-          sudo apt update
-          sudo apt full-upgrade -y
-          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential bzip2 ccache clang cmake cpio curl device-tree-compiler ecj fastjar flex gawk gettext gcc-multilib g++-multilib git gnutls-dev gperf haveged help2man intltool lib32gcc-s1 libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf python3 python3-pip python3-ply python3-docutils python3-pyelftools qemu-utils re2c rsync scons squashfs-tools subversion swig texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
-
-      - name: 克隆当前仓库 (Clone current repo)
+      # 1️⃣ 检出代码
+      - name: Checkout Current Repo
         uses: actions/checkout@v4
 
-      - name: 克隆 openWRT 仓库 (Clone openWRT repo)
+      # 2️⃣ 清理磁盘空间 (极大降低 No space left on device 概率)
+      - name: 初始化编译环境 (Free Disk Space)
+        uses: jlumbroso/free-disk-space-action@v1.3.1
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      # 3️⃣ 安装依赖
+      - name: 安装编译依赖
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt-get -qq update
+          sudo -E apt-get -qq install -y $(curl -fsSL https://is.gd/depends_ubuntu_2204)
+          sudo -E apt-get -qq autoremove --purge
+          sudo -E apt-get -qq clean
+          sudo timedatectl set-timezone "$TZ"
+
+      # 4️⃣ 克隆源码
+      - name: 克隆 OpenWrt 源码
         uses: actions/checkout@v4
         with:
-          repository: "${{inputs.owner}}/${{inputs.repo}}"
-          ref: ${{inputs.branch}}
+          repository: ${{ inputs.owner }}/${{ inputs.repo }}
+          ref: ${{ inputs.branch }}
           path: openWRT
+          fetch-depth: 1
 
-      - name: 复制当前仓库的配置文件到 openWRT 仓库  (Copy current repo config to openWRT repo)
-        run: cp -f .config diy.sh openWRT/
+      # 5️⃣ 关键：加载自定义配置
+      - name: 加载自定义配置
+        run: |
+          # 如果仓库根目录有 .config，直接覆盖
+          [ -f .config ] && cp -f .config openWRT/
+          [ -f diy.sh ] && cp -f diy.sh openWRT/
+          # 如果开启了 files 注入
+          [ -d files ] && [ "${{ inputs.isFiles }}" == "true" ] && cp -r files openWRT/
+          
+          # 执行自定义脚本
+          cd openWRT
+          [ -f diy.sh ] && chmod +x diy.sh && ./diy.sh
 
-      - name: 如果选择了上传 files 大法，则复制 files 目录到 openWRT 仓库 (If you choose to upload the etc files, copy the etc directory to the openWRT repo)
-        if: ${{inputs.isFiles == true}}
-        run: cp -r files openWRT/files
-
-      - name: 运行 diy.sh (Run diy.sh)
+      # 6️⃣ 更新 Feeds
+      - name: 更新并安装 Feeds
         working-directory: openWRT
         run: |
-          chmod +x diy.sh
-          ./diy.sh
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
-      - name: 更新并下载 feeds (Update and download feeds)
+      # 7️⃣ 缓存优化 (加快后续编译)
+      - name: 缓存 DL 源码库
+        uses: actions/cache@v4
+        with:
+          path: openWRT/dl
+          key: ${{ runner.os }}-openwrt-dl-${{ hashFiles('openWRT/.config') }}
+          restore-keys: |
+            ${{ runner.os }}-openwrt-dl-
+
+      # 8️⃣ SSH 调试 (tmate)
+      # 如果开启，会输出 SSH 连接信息。连接后输入 make menuconfig 修改配置。
+      # 修改完后，输入 exit 或者在 Actions 页面 Cancel Debugging 即可继续后续步骤 (注意不要 cancel workflow)
+      - name: SSH 调试 (tmate)
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ inputs.ssh }}
+
+      # 9️⃣ ⭐️ 关键步骤：备份配置 (无论 SSH 是否修改，都在此处保存一份)
+      # 这样即使后面编译失败，你也能拿到最新的配置
+      - name: 生成并备份配置
         working-directory: openWRT
-        run: ./scripts/feeds update -a && ./scripts/feeds install -a
-
-      - name: 使用ssh连接编译环境，限时15分钟，可在连接后输入命令 `touch /tmp/keepalive` 保活 (Connect to the build environment using ssh)
-        if: ${{inputs.ssh == true}}
-        uses: csexton/debugger-action@master
-
-      - name: 启用ssh生成了.config后在编译前上传配置(Upload config before build)
-        if: ${{inputs.multithreading == true}}
+        run: |
+          make defconfig
+          cp .config ${{ github.workspace }}/openwrt.config
+          
+      - name: 上传配置到 Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: config-before-build
-          path: |
-            openWRT/.config
-            openWRT/feeds.conf.default
-          include-hidden-files: true
+          name: openwrt_config_backup
+          path: ${{ github.workspace }}/openwrt.config
 
-      - name: 多线程编译 openWRT (Build openWRT multithreading)
-        if: ${{inputs.multithreading == true}}
+      # 🔟 预下载 DL 库 (防止编译时网络中断)
+      - name: 下载软件包
         working-directory: openWRT
-        run: make -j$(nproc) V=s
+        run: |
+          make download -j8
+          find dl -size -1024c -exec ls -l {} \; -exec rm -f {} \;
 
-      - name: 单线程编译 openWRT (Build openWRT single thread)
-        if: ${{inputs.multithreading == false}}
+      # 1️⃣1️⃣ 编译固件 (多线程 -> 失败转单线程)
+      - name: 编译固件
+        id: compile
         working-directory: openWRT
-        run: make -j1 V=s
+        run: |
+          echo "FILE_DATE=$(date +"%Y.%m.%d-%H%M")" >> $GITHUB_ENV
+          echo "=== 开始编译 ==="
+          make -j$(nproc) || make -j1 V=s
+          echo "=== 编译完成 ==="
 
-      - name: 上传编译结果到 Artifact (Upload build result to Artifact)
-        uses: actions/upload-artifact@v4
+      # 1️⃣2️⃣ 整理输出文件
+      - name: 整理输出文件
+        id: organize
+        if: success() && !cancelled()
+        run: |
+          mkdir -p firmware_files
+          cd openWRT/bin/targets/*/*
+          rm -rf packages
+          
+          # 复制固件
+          cp -rf * ${{ github.workspace }}/firmware_files/
+          # 复制配置文件 (重命名以便识别)
+          cp ${{ github.workspace }}/openwrt.config ${{ github.workspace }}/firmware_files/full.config
+          
+          echo "FIRMWARE=${{ github.workspace }}/firmware_files" >> $GITHUB_ENV
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      # 1️⃣3️⃣ 发布 Release
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        if: steps.organize.outputs.status == 'success' && !cancelled()
         with:
-          name: openWRT-build-result
-          path: openWRT/bin/targets
+          tag_name: v${{ env.FILE_DATE }}
+          name: OpenWrt Build ${{ env.FILE_DATE }}
+          files: ${{ env.FIRMWARE }}/*
+          body: |
+            ### 编译信息
+            - 源码: `${{ inputs.owner }}/${{ inputs.repo }}`
+            - 分支: `${{ inputs.branch }}`
+            - 时间: ${{ env.FILE_DATE }}
+            
+            ### ⚙️ 配置文件使用方法
+            如果你想复用这次的配置：
+            1. 下载附件中的 `full.config`。
+            2. 重命名为 `.config`。
+            3. 上传到你的 GitHub 仓库根目录。
+            4. 下次运行 Actions 时，**取消勾选 SSH** 即可自动使用。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
