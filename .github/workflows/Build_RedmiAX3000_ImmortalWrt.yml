@@ -127,6 +127,22 @@ jobs:
           find dl -size -1024c -exec ls -l {} \;
           find dl -size -1024c -exec rm -f {} \;
 
+      - name: 📝 设置 SSH 欢迎信息
+        if: ${{ inputs.ssh }}
+        run: |
+          cat >> ~/.bashrc << 'EOF'
+          echo ""
+          echo "============================================"
+          echo "  🚀 OpenWrt 编译环境 - SSH 调试模式"
+          echo "============================================"
+          echo "  源码目录:  cd openWRT"
+          echo "  配置菜单:  make menuconfig"
+          echo "  补全配置:  make defconfig"
+          echo "  继续编译:  touch ~/continue && exit"
+          echo "============================================"
+          echo ""
+          EOF
+
       - name: 📡 SSH 连接调试
         uses: mxschmitt/action-tmate@v3
         if: ${{ inputs.ssh }}
