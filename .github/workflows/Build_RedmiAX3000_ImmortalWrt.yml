@@ -96,6 +96,8 @@ jobs:
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          # 设置默认主题为 argon（必须在 feeds install 之后执行）
+          sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
           make defconfig
 
       - name: 💾 缓存 DL 目录
