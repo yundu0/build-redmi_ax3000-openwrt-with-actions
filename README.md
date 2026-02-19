@@ -75,7 +75,8 @@ touch ~/continue
 
 - 执行 `touch ~/continue` 后断开 SSH，Workflow 会**自动继续**编译
 - **如果不执行直接断开**，Workflow 会一直等待直到 6 小时超时，浪费 Actions 额度！
-- 整个 Job 时限 **6 小时**，SSH 调试建议控制在 **30 分钟内**，把时间留给编译
+- 执行 `touch ~/continue` 后手动退出，或等待 **30分钟超时** 后 Workflow 会自动继续。
+- 整个 Job 时限 6 小时，SSH 调试建议控制在 30 分钟内。
 
 ---
 
