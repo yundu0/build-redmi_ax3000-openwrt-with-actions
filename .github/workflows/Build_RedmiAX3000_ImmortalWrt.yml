@@ -37,6 +37,10 @@ jobs:
       - name: ⬇️ 检出代码
         uses: actions/checkout@v4
 
+      - name: 🕒 设置构建时间
+        run: |
+          echo "BUILD_DATE=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
+
       - name: 🧹 释放磁盘空间
         uses: jlumbroso/free-disk-space@main
         with:
@@ -94,6 +98,14 @@ jobs:
           ./scripts/feeds install -a
           make defconfig
 
+      - name: 💾 缓存 DL 目录
+        uses: actions/cache@v4
+        with:
+          path: openWRT/dl
+          key: openwrt-dl-${{ hashFiles('openWRT/.config') }}
+          restore-keys: |
+            openwrt-dl-
+
       - name: ⬇️ 下载软件包
         working-directory: openWRT
         run: |
@@ -102,15 +114,33 @@ jobs:
           find dl -size -1024c -exec rm -f {} \;
 
       - name: 📡 SSH 连接调试
-        uses: csexton/debugger-action@master
+        uses: mxschmitt/action-tmate@v3
         if: ${{ inputs.ssh }}
+        with:
+          limit-access-to-actor: true
+
+      - name: 💾 缓存 ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ hashFiles('openWRT/.config') }}-${{ env.BUILD_DATE }}
+          restore-keys: |
+            ccache-${{ hashFiles('openWRT/.config') }}-
+            ccache-
 
       - name: 🚀 开始编译
         working-directory: openWRT
         run: |
-          echo "=== 编译开始 ==="
+          export PATH="/usr/lib/ccache:$PATH"
+          ccache -z
+          echo "=== 编译开始: $(date) ==="
+          START_TIME=$(date +%s)
           make -j$(nproc) || make -j1 V=s
-          echo "=== 编译结束 ==="
+          END_TIME=$(date +%s)
+          ELAPSED=$(( END_TIME - START_TIME ))
+          echo "=== 编译结束: $(date) ==="
+          echo "⏱️ 编译耗时: $(( ELAPSED / 3600 ))h $(( (ELAPSED % 3600) / 60 ))m $(( ELAPSED % 60 ))s"
+          ccache -s
 
       - name: 📦 整理编译产物
         id: organize
@@ -120,6 +150,13 @@ jobs:
           find openWRT/bin/targets -name "*.bin" -exec cp {} firmware/ \;
           find openWRT/bin/targets -name "*.img.gz" -exec cp {} firmware/ \;
           cp openWRT/.config firmware/build.config
+          FILE_COUNT=$(ls firmware/ | wc -l)
+          echo "📦 共整理 ${FILE_COUNT} 个文件:"
+          ls -lh firmware/
+          if [ "$FILE_COUNT" -le 1 ]; then
+            echo "⚠️ 警告: 未发现固件文件，仅有 build.config"
+          fi
+          cd firmware && sha256sum * > sha256sums.txt && cd ..
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: 📤 上传固件
@@ -141,5 +178,4 @@ jobs:
             **分支**: `${{ inputs.branch }}`
             **时间**: ${{ env.BUILD_DATE }}
         env:
-          BUILD_DATE: $(date +'%Y.%m.%d-%H%M')
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
