@@ -1,5 +1,11 @@
 #!/bin/sh
-# 设置变量
+# ============================================================
+# 99-custom - 首次启动自定义配置脚本
+# 此脚本在路由器首次启动时自动执行一次
+# 执行成功（exit 0）后系统会自动删除此脚本
+# ============================================================
+
+# === 配置变量 ===
 wlan_name0="Redmi_255E"
 wlan_name1="Redmi_255E_5G"
 wlan_password=""
@@ -10,8 +16,9 @@ pppoe_password=""
 hostname="ImmortalWrt"
 
 echo "开始执行首次配置脚本..."
-# === 设置led ===
-uci add system led # =cfg048bba
+
+# === 设置 LED 指示灯 ===
+uci add system led
 uci set system.@led[-1].name='Internet'
 uci set system.@led[-1].sysfs='blue:internet'
 uci set system.@led[-1].trigger='netdev'
@@ -19,19 +26,19 @@ uci set system.@led[-1].dev='wan'
 uci add_list system.@led[-1].mode='link'
 uci add_list system.@led[-1].mode='tx'
 uci add_list system.@led[-1].mode='rx'
+
 # === 设置管理员密码 ===
 if [ -n "$root_password" ]; then
   (echo "$root_password"; sleep 1; echo "$root_password") | passwd >/dev/null 2>&1
   echo "管理员密码已设置。"
 else
-  echo "管理员密码未设置（保留默认密码）。"
+  echo "管理员密码未设置（保留默认空密码）。"
 fi
 
 # === 配置 LAN 网络 ===
 if [ -n "$lan_ip_address" ]; then
   uci set network.lan.ipaddr="$lan_ip_address"
   uci set network.lan.netmask="255.255.255.0"
-  uci commit network
   echo "LAN 地址设置为 $lan_ip_address"
 fi
 
@@ -74,14 +81,11 @@ if [ -n "$wlan_name1" ]; then
   fi
 fi
 
-uci commit wireless
-
 # === 配置 PPPoE 拨号 ===
 if [ -n "$pppoe_username" ] && [ -n "$pppoe_password" ]; then
   uci set network.wan.proto='pppoe'
   uci set network.wan.username="$pppoe_username"
   uci set network.wan.password="$pppoe_password"
-  uci commit network
   echo "PPPoE 拨号账号已设置。"
 else
   echo "未配置 PPPoE 拨号。"
@@ -90,14 +94,17 @@ fi
 # === 设置主机名 ===
 if [ -n "$hostname" ]; then
   uci set system.@system[0].hostname="$hostname"
-  uci commit system
   echo "主机名设置为 $hostname"
 fi
 
-# 设置时区
+# === 设置时区 ===
 uci set system.@system[0].zonename='Asia/Shanghai'
 uci set system.@system[0].timezone='CST-8'
 
-# 重启网络服务
-/etc/init.d/network restart
+# === 统一提交所有更改 ===
+uci commit system
+uci commit network
+uci commit wireless
+
 echo "首次启动配置完成！"
+exit 0
