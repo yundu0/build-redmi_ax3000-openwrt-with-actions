@@ -46,7 +46,7 @@ fi
 # 2.4GHz
 if [ -n "$wlan_name0" ]; then
   uci set wireless.radio0.disabled='0'
-  uci set wireless.radio0.htmode='HT40'
+  uci set wireless.radio0.htmode='HE40'
   uci set wireless.radio0.channel='6'
   uci set wireless.radio0.country='CN'
   # 禁用因弱信号断开客户端（减少误断连）
