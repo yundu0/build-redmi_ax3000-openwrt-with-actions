@@ -68,14 +68,14 @@ make defconfig
 diff .config .config.old
 
 # 5. ⭐ 完成后必须执行！告诉 Workflow 继续编译
-touch ~/continue
+# 5. ⭐ 完成后必须执行！告诉 Workflow 继续编译
+touch ~/continue && exit
 ```
 
 ### ⚠️ 注意事项
 
-- 执行 `touch ~/continue` 后断开 SSH，Workflow 会**自动继续**编译
-- **如果不执行直接断开**，Workflow 会一直等待直到 6 小时超时，浪费 Actions 额度！
-- 执行 `touch ~/continue` 后手动退出，或等待 **30分钟超时** 后 Workflow 会自动继续。
+- 执行 `touch ~/continue && exit` 后手动退出，或等待 **30分钟超时** 后 Workflow 会自动继续。
+- **如果不执行就断开**，Workflow 会一直等待直到 6 小时超时（若未设置超时）或 30 分钟（已设置超时）。
 - 整个 Job 时限 6 小时，SSH 调试建议控制在 30 分钟内。
 
 ---
