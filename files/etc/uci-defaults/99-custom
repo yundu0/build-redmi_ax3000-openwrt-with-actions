@@ -13,7 +13,7 @@ lan_ip_address="192.168.31.1"
 root_password=""
 pppoe_username=""
 pppoe_password=""
-hostname="ImmortalWrt"
+hostname="Redmi_255E"
 
 echo "开始执行首次配置脚本..."
 

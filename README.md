@@ -95,7 +95,7 @@ touch ~/continue
 | WiFi 2.4G SSID | `Redmi_255E` |
 | WiFi 5G SSID | `Redmi_255E_5G` |
 | WiFi 密码 | 无（开放网络） |
-| 主机名 | `ImmortalWrt` |
+| 主机名 | `Redmi_255E` |
 | 时区 | `Asia/Shanghai` |
 | LED | WAN 口蓝色网络状态灯 |
 
