@@ -22,6 +22,14 @@ on:
         description: "SSH 连接调试"
         type: boolean
         default: false
+      use_files:
+        description: "复制 files 自定义文件"
+        type: boolean
+        default: true
+      use_diy:
+        description: "执行 diy.sh 自定义脚本"
+        type: boolean
+        default: true
 
 env:
   TZ: Asia/Shanghai
@@ -72,17 +80,21 @@ jobs:
 
       - name: 📂 加载自定义配置
         run: |
-          if [ -d "files" ]; then
+          if [ "${{ inputs.use_files }}" = "true" ] && [ -d "files" ]; then
             echo "✅ 检测到 files 目录，正在复制..."
             cp -r files openWRT/files
+          else
+            echo "⏭️ 跳过 files 目录复制"
           fi
-          if [ -f "diy.sh" ]; then
+          if [ "${{ inputs.use_diy }}" = "true" ] && [ -f "diy.sh" ]; then
             echo "✅ 检测到 diy.sh，正在执行..."
             chmod +x diy.sh
             cp diy.sh openWRT/
             cd openWRT
             ./diy.sh
             cd ..
+          else
+            echo "⏭️ 跳过 diy.sh 执行"
           fi
           if [ -f ".config" ]; then
             echo "✅ 检测到 .config，正在复制..."
