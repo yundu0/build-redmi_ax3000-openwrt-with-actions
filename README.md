@@ -33,44 +33,49 @@
 
 ### 连接方式
 
-Workflow 运行到 SSH 步骤时，在 Actions 日志中会显示连接信息：
+Workflow 运行到 SSH 步骤时，Actions 日志会**循环输出**连接信息（这是正常行为，不是卡住）：
 
 ```
-SSH: ssh xxxx@nyc1.tmate.io
+Warning: No public SSH keys found for xxx; continuing without them...
 Web shell: https://tmate.io/t/xxxx
+SSH: ssh xxxx@nyc1.tmate.io
 ```
 
-- **方式一**：复制 `ssh` 命令在终端中连接
-- **方式二**：直接在浏览器中打开 Web shell 链接
+### 连接方式
 
-> ⚠️ 已启用 `limit-access-to-actor`，仅触发 Workflow 的 GitHub 用户可以连接。
+- **方式一（推荐）**：复制 `Web shell` 链接在浏览器中直接打开
+- **方式二**：复制 `SSH` 命令在本地终端中连接
 
-### 常用操作
+### 操作步骤
+
+连接后按顺序执行：
 
 ```bash
-# 进入源码目录
+# 1. 进入源码目录
 cd openWRT
 
-# 可视化配置菜单（调整 .config）
+# 2. 打开可视化配置菜单
 make menuconfig
+#    - 用方向键导航，Enter 进入子菜单
+#    - Y 选中，N 取消，M 设为模块
+#    - / 搜索配置项
+#    - 调整完后按 Esc 返回，选 Yes 保存
 
-# 补全配置
+# 3. 补全配置（自动处理依赖）
 make defconfig
 
-# 查看当前 .config 差异
+# 4. （可选）查看配置变化
 diff .config .config.old
-```
 
-### ⚠️ 完成调试后（重要！）
-
-```bash
-# 必须执行此命令告诉 Workflow 继续
+# 5. ⭐ 完成后必须执行！告诉 Workflow 继续编译
 touch ~/continue
 ```
 
-执行 `touch ~/continue` 后断开 SSH，Workflow 会**自动继续**后续的编译步骤。
+### ⚠️ 注意事项
 
-> **如果不执行此命令直接断开**，Workflow 会一直等待直到 GitHub Actions 的 6 小时超时，浪费 Actions 额度！
+- 执行 `touch ~/continue` 后断开 SSH，Workflow 会**自动继续**编译
+- **如果不执行直接断开**，Workflow 会一直等待直到 6 小时超时，浪费 Actions 额度！
+- 整个 Job 时限 **6 小时**，SSH 调试建议控制在 **30 分钟内**，把时间留给编译
 
 ---
 
