@@ -178,8 +178,16 @@ jobs:
         if: success()
         run: |
           mkdir -p firmware
-          find openWRT/bin/targets -name "*.bin" -exec cp {} firmware/ \;
-          find openWRT/bin/targets -name "*.img.gz" -exec cp {} firmware/ \;
+          # 收集所有常见固件格式（排除 packages 目录和构建信息文件）
+          find openWRT/bin/targets -type f \
+            \( -name "*.bin" \
+            -o -name "*.img.gz" \
+            -o -name "*.ubi" \
+            -o -name "*.tar.gz" \
+            -o -name "*.itb" \
+            -o -name "*.trx" \) \
+            ! -path "*/packages/*" \
+            -exec cp {} firmware/ \;
           cp openWRT/.config firmware/build.config
           FILE_COUNT=$(ls firmware/ | wc -l)
           echo "📦 共整理 ${FILE_COUNT} 个文件:"
