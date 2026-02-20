@@ -99,6 +99,11 @@ jobs:
           if [ -f ".config" ]; then
             echo "✅ 检测到 .config，正在复制..."
             cp .config openWRT/.config
+            echo "📊 .config 验证："
+            echo "   总行数: $(wc -l < openWRT/.config)"
+            echo "   已启用包数: $(grep -c '^CONFIG_PACKAGE_.*=y' openWRT/.config)"
+            echo "   关键包状态："
+            grep -E 'CONFIG_PACKAGE_(luci-app-ssr-plus|luci-theme-argon|luci-app-easymesh)' openWRT/.config || echo "   ⚠️ 关键包未找到！"
           else
             echo "❌ 警告：仓库中没有 .config 文件！将使用默认配置。"
           fi
