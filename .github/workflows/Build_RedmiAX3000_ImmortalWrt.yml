@@ -184,6 +184,24 @@ jobs:
             ccache-${{ hashFiles('openWRT/.config') }}-
             ccache-
 
+      - name: 🔍 编译前验证配置
+        working-directory: openWRT
+        run: |
+          echo "🔍 编译前验证关键包状态（SSH 修改后）："
+          FAILED=0
+          for pkg in luci-app-ssr-plus luci-theme-argon luci-app-easymesh; do
+            if grep -q "CONFIG_PACKAGE_${pkg}=y" .config; then
+              echo "  ✅ ${pkg}"
+            else
+              echo "  ❌ ${pkg} 未启用！请检查是否在 SSH 中误删。"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" = "1" ]; then
+            echo "❌ 关键包验证失败，中断编译。"
+            exit 1
+          fi
+
       - name: 🚀 开始编译
         working-directory: openWRT
         run: |
