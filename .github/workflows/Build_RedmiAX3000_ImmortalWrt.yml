@@ -152,9 +152,14 @@ jobs:
           find dl -size -1024c -exec ls -l {} \;
           find dl -size -1024c -exec rm -f {} \;
 
-      - name: 📝 设置 SSH 欢迎信息
+      - name: 📝 设置 SSH 欢迎信息 & 保存配置快照
         if: ${{ inputs.ssh }}
+        working-directory: openWRT
         run: |
+          # 保存 SSH 前的 .config 快照，用于事后对比
+          grep '^CONFIG_PACKAGE_.*=y' .config | sort > /tmp/config_before_ssh.txt
+          echo "📸 已保存 SSH 前配置快照（$(wc -l < /tmp/config_before_ssh.txt) 个包启用）"
+
           cat >> ~/.bashrc << 'EOF'
           echo ""
           echo "============================================"
@@ -174,6 +179,27 @@ jobs:
         if: ${{ inputs.ssh }}
         timeout-minutes: 30
         continue-on-error: true
+
+      - name: 📋 打印 SSH 配置变更
+        if: ${{ inputs.ssh }}
+        working-directory: openWRT
+        run: |
+          grep '^CONFIG_PACKAGE_.*=y' .config | sort > /tmp/config_after_ssh.txt
+          ADDED=$(comm -13 /tmp/config_before_ssh.txt /tmp/config_after_ssh.txt)
+          REMOVED=$(comm -23 /tmp/config_before_ssh.txt /tmp/config_after_ssh.txt)
+          echo "📋 SSH 操作后配置变更："
+          if [ -n "$ADDED" ]; then
+            echo "  ✅ 新增的包："
+            echo "$ADDED" | sed 's/CONFIG_PACKAGE_//;s/=y//' | sed 's/^/    + /'
+          else
+            echo "  （无新增包）"
+          fi
+          if [ -n "$REMOVED" ]; then
+            echo "  ❌ 移除的包："
+            echo "$REMOVED" | sed 's/CONFIG_PACKAGE_//;s/=y//' | sed 's/^/    - /'
+          else
+            echo "  （无移除包）"
+          fi
 
       - name: 💾 缓存 ccache
         uses: actions/cache@v4
