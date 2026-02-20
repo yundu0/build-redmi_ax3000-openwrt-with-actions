@@ -114,9 +114,11 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           # 显式安装 kenzok8 第三方包（feeds install -a 不保证安装所有第三方包）
-          ./scripts/feeds install -p kenzok8 luci-app-ssr-plus luci-app-turboacc luci-app-ddns-go \
+          ./scripts/feeds install -p kenzok8 luci-app-ssr-plus luci-app-ddns-go \
             luci-app-easymesh luci-app-argon-config luci-theme-argon luci-app-ttyd \
             luci-app-cpufreq luci-app-filemanager luci-app-package-manager || true
+          # 删除会导致循环依赖的包（nikki/fchomo 与 firewall4 有循环依赖）
+          rm -rf feeds/kenzok8/nikki feeds/kenzok8/luci-app-nikki feeds/kenzok8/luci-app-fchomo 2>/dev/null || true
           # 设置默认主题为 argon（必须在 feeds install 之后执行）
           sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
           make defconfig
