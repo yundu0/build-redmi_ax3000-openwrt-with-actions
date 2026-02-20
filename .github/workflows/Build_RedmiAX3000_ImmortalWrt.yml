@@ -113,16 +113,11 @@ jobs:
         run: |
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          # 显式安装 kenzok8 第三方包（feeds install -a 不保证安装所有第三方包）
-          ./scripts/feeds install -p kenzok8 luci-app-ssr-plus luci-app-ddns-go \
+          # 显式安装第三方包，确保 make defconfig 前已注册到构建系统
+          ./scripts/feeds install -p helloworld luci-app-ssr-plus || true
+          ./scripts/feeds install -p kenzok8 luci-app-ddns-go \
             luci-app-easymesh luci-app-argon-config luci-theme-argon luci-app-ttyd \
             luci-app-cpufreq luci-app-filemanager luci-app-package-manager || true
-          # 删除 nikki/fchomo/mihomo/momo 的 package/feeds 符号链接
-          # 这些包与 firewall4 存在循环依赖，必须在 make defconfig 之前从构建系统中排除
-          for pkg in nikki luci-app-nikki luci-app-fchomo mihomo luci-app-mihomo momo luci-app-momo; do
-            find package/feeds/ -maxdepth 2 -name "$pkg" -exec rm -rf {} + 2>/dev/null || true
-          done
-          echo "✅ 已清除循环依赖包（nikki/fchomo/mihomo/momo）"
           # 设置默认主题为 argon（必须在 feeds install 之后执行）
           sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
           make defconfig

@@ -91,7 +91,8 @@ touch ~/continue && exit
 ### diy.sh 说明
 
 - 修改默认 LAN IP 为 `192.168.31.1`
-- 添加 [kenzok8/openwrt-packages](https://github.com/kenzok8/openwrt-packages) 和 [kenzok8/small](https://github.com/kenzok8/small) 第三方软件源
+- 添加 [kenzok8/openwrt-packages](https://github.com/kenzok8/openwrt-packages) 软件源（argon 主题、easymesh 等）
+- 添加 [fw876/helloworld](https://github.com/fw876/helloworld) 软件源（SSR Plus+ 官方源，更稳定）
 
 ### 99-custom 首次启动配置
 
