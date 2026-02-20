@@ -121,6 +121,22 @@ jobs:
           sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
           make defconfig
 
+          # 验证关键包在 defconfig 后仍然启用（若被禁用则中断编译）
+          echo "🔍 验证 make defconfig 后关键包状态："
+          FAILED=0
+          for pkg in luci-app-ssr-plus luci-theme-argon luci-app-easymesh; do
+            if grep -q "CONFIG_PACKAGE_${pkg}=y" .config; then
+              echo "  ✅ ${pkg}"
+            else
+              echo "  ❌ ${pkg} 未启用！可能未被 feeds 识别。"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" = "1" ]; then
+            echo "❌ 关键包验证失败，请检查 feeds 是否正确安装。"
+            exit 1
+          fi
+
       - name: 💾 缓存 DL 目录
         uses: actions/cache@v4
         with:
