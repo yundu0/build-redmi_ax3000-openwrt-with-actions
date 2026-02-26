@@ -221,15 +221,15 @@ jobs:
           ccache -z
           
           # 🐛 针对 Rust 1.90.0 编译 Bug 的热修复守护进程
-          # immortalwrt 源码中 rust vendor 缺失 serde 的 Cargo.toml.orig，导致校验失败中断
+          # immortalwrt 源码中 rust vendor 缺失诸多包的 Cargo.toml.orig，导致校验失败中断
           # 启动后台任务：一旦解压出相关目录，不断清理掉 checksum 中的对应记录
           (
             while true; do
-              find build_dir/ -path "*/vendor/serde-*/.cargo-checksum.json" 2>/dev/null | while read -r file; do
+              find build_dir/ -path "*/vendor/*/.cargo-checksum.json" 2>/dev/null | while read -r file; do
                 if grep -q '"Cargo.toml.orig"' "$file"; then
                   sed -i 's/"Cargo.toml.orig":"[^"]*",\?//g' "$file"
                   sed -i 's/,"Cargo.toml.orig":"[^"]*"//g' "$file"
-                  echo "✅ 已修复 serde checksum BUG: $file"
+                  echo "✅ 已修复 checksum BUG: $file"
                 fi
               done
               sleep 2
