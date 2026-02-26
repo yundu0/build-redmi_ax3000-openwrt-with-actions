@@ -106,9 +106,10 @@ if [ -n "$hostname" ]; then
   echo "主机名设置为 $hostname"
 fi
 
-# === 设置时区 ===
+# === 设置时区和语言 ===
 uci set system.@system[0].zonename='Asia/Shanghai'
 uci set system.@system[0].timezone='CST-8'
+uci set luci.main.lang='zh_cn'
 
 # === 统一提交所有更改 ===
 uci commit system
