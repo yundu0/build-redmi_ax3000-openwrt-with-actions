@@ -131,6 +131,13 @@ jobs:
           # 第二次 defconfig：让构建系统自动补全新增包的依赖
           make defconfig
 
+          # 强制禁用容易编译失败的包（如 MosDNS，其依附于 SSR Plus 且 defconfig 可能会自动恢复它）
+          echo "🔧 强制清除故障包配置..."
+          sed -i 's/CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y/# CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS is not set/g' .config
+          sed -i 's/CONFIG_PACKAGE_mosdns=y/# CONFIG_PACKAGE_mosdns is not set/g' .config
+          sed -i 's/CONFIG_PACKAGE_luci-app-mosdns=y/# CONFIG_PACKAGE_luci-app-mosdns is not set/g' .config
+          make defconfig
+
           # 验证关键包状态（仅警告，不中断编译）
           echo "🔍 验证 make defconfig 后关键包状态："
           for pkg in luci-app-ssr-plus luci-theme-argon luci-app-easymesh; do
