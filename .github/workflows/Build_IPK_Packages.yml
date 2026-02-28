@@ -1,0 +1,126 @@
+name: 📦 编译指定 IPK 软件包
+
+on:
+  workflow_dispatch:
+    inputs:
+      packages:
+        description: "要编译的包名 (用空格分隔, 填写精准名称如: mosdns xray-core)"
+        type: string
+        required: true
+        default: "mosdns xray-core"
+      owner:
+        description: "openWRT 仓库拥有者"
+        type: string
+        default: "zhouun"
+      repo:
+        description: "openWRT 仓库名称"
+        type: string
+        default: "Redmi_AX3000_immortalwrt"
+      branch:
+        description: "openWRT 分支"
+        type: string
+        default: "redmi_ax3000-24.10"
+
+env:
+  TZ: Asia/Shanghai
+
+jobs:
+  build_packages:
+    runs-on: ubuntu-22.04
+    name: 📦 独立编译 IPK (${{ inputs.packages }})
+    
+    steps:
+      - name: ⬇️ 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🕒 设置构建时间
+        run: echo "BUILD_DATE=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
+
+      - name: 🧹 释放磁盘空间
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: 📦 安装编译依赖
+        run: |
+          sudo apt update
+          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+          bzip2 ccache clang cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib \
+          git gnutls-dev gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev \
+          libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool \
+          libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf \
+          python3 python3-pip python3-docutils qemu-utils re2c rsync scons squashfs-tools subversion swig \
+          texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
+
+      - name: ⬇️ 克隆 OpenWrt 源码
+        uses: actions/checkout@v4
+        with:
+          repository: "${{ inputs.owner }}/${{ inputs.repo }}"
+          ref: ${{ inputs.branch }}
+          path: openWRT
+
+      - name: 📂 加载自定义配置 (diy.sh 和 .config)
+        run: |
+          if [ -f "diy.sh" ]; then
+            chmod +x diy.sh
+            cp diy.sh openWRT/
+            cd openWRT && ./diy.sh && cd ..
+          fi
+          if [ -f ".config" ]; then
+            cp .config openWRT/.config
+          fi
+
+      - name: 🔄 更新 Feeds & 生成配置
+        working-directory: openWRT
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          
+          # 动态安装用户请求的特定包
+          for pkg in ${{ inputs.packages }}; do
+            ./scripts/feeds install -p helloworld $pkg || true
+            ./scripts/feeds install -p kenzok8 $pkg || true
+            ./scripts/feeds install $pkg || true
+          done
+          make defconfig
+
+          # 强制将请求的包设为模块状态(m)进行单编
+          for pkg in ${{ inputs.packages }}; do
+            sed -i "s/# CONFIG_PACKAGE_${pkg} is not set/CONFIG_PACKAGE_${pkg}=m/g" .config
+            grep -q "CONFIG_PACKAGE_${pkg}=" .config || echo "CONFIG_PACKAGE_${pkg}=m" >> .config
+          done
+          make defconfig
+
+      - name: 🚀 编译单个软件包 (单线程强制编译)
+        working-directory: openWRT
+        run: |
+          echo "=== 准备单独编译以下软件包: ${{ inputs.packages }} ==="
+          # 为了能看清依赖错误，直接使用 V=s 获取顶级报错信息，并且只针对指定包进行编译
+          for pkg in ${{ inputs.packages }}; do
+            echo "👉 开始编译独立包: $pkg"
+            make package/${pkg}/download -j8 || true
+            # 尝试先多线程编译这个包，失败则单线程输出细节
+            make package/${pkg}/compile -j$(nproc) || make package/${pkg}/compile -j1 V=s || echo "❌ $pkg 组件编译遇到了致命错误!"
+          done
+
+      - name: 📦 收集 IPK 产物
+        if: always()
+        run: |
+          mkdir -p ipk_packages
+          # 在 bin 目录下全局搜寻生成的 .ipk
+          find openWRT/bin/ -name "*.ipk" -exec cp {} ipk_packages/ \;
+          FILE_COUNT=$(ls ipk_packages/ 2>/dev/null | wc -l || echo 0)
+          echo "📦 共搜寻到 ${FILE_COUNT} 个编译好的 IPK 文件:"
+          ls -lh ipk_packages/ || true
+
+      - name: 📤 上传 IPK 扩展包
+        uses: actions/upload-artifact@v4
+        with:
+          name: Custom_Independent_IPKs
+          path: ipk_packages/*.ipk
