@@ -112,17 +112,20 @@ jobs:
         working-directory: openWRT
         run: |
           ./scripts/feeds update -a
+          # 移除官方的可能与 kenzok8/small 冲突的包
+          rm -rf feeds/luci/applications/luci-app-mosdns
+          rm -rf feeds/packages/net/{alist,adguardhome,mosdns,xray*,v2ray*,v2ray*,sing*,smartdns}
+          rm -rf feeds/packages/utils/v2dat
+          # 替换 golang 为官方最新版以避免编译错误
+          rm -rf feeds/packages/lang/golang
+          git clone https://github.com/kenzok8/golang feeds/packages/lang/golang
           ./scripts/feeds install -a
+          
           # 显式安装第三方包，确保 make defconfig 前已注册到构建系统
           ./scripts/feeds install -p small luci-app-ssr-plus || true
-          ./scripts/feeds install -p kenzok8 luci-app-ddns-go \
+          ./scripts/feeds install -p kenzo luci-app-ddns-go \
             luci-app-easymesh luci-app-argon-config luci-theme-argon luci-app-ttyd \
             luci-app-cpufreq luci-app-filemanager luci-app-package-manager || true
-            
-          # ⚠️ 移除 kenzok8/small 等源里会导致 make defconfig 死循环或者冲突的代理客户端组件
-          rm -rf feeds/small/luci-app-nikki feeds/small/nikki feeds/small/luci-app-fchomo feeds/small/fchomo feeds/small/luci-app-momo feeds/small/momo feeds/small/mihomo feeds/small/luci-app-mihomo || true
-          rm -rf feeds/kenzok8/luci-app-nikki feeds/kenzok8/nikki feeds/kenzok8/luci-app-fchomo feeds/kenzok8/fchomo feeds/kenzok8/luci-app-momo feeds/kenzok8/momo feeds/kenzok8/mihomo feeds/kenzok8/luci-app-mihomo || true
-            
           # 设置默认主题为 argon（必须在 feeds install 之后执行）
           sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
           make defconfig
