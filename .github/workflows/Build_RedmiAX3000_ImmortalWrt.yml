@@ -114,10 +114,15 @@ jobs:
           ./scripts/feeds update -a
           ./scripts/feeds install -a
           # 显式安装第三方包，确保 make defconfig 前已注册到构建系统
-          ./scripts/feeds install -p helloworld luci-app-ssr-plus || true
+          ./scripts/feeds install -p small luci-app-ssr-plus || true
           ./scripts/feeds install -p kenzok8 luci-app-ddns-go \
             luci-app-easymesh luci-app-argon-config luci-theme-argon luci-app-ttyd \
             luci-app-cpufreq luci-app-filemanager luci-app-package-manager || true
+            
+          # ⚠️ 移除 kenzok8/small 等源里会导致 make defconfig 死循环或者冲突的代理客户端组件
+          rm -rf feeds/small/luci-app-nikki feeds/small/nikki feeds/small/luci-app-fchomo feeds/small/fchomo feeds/small/luci-app-momo feeds/small/momo feeds/small/mihomo feeds/small/luci-app-mihomo || true
+          rm -rf feeds/kenzok8/luci-app-nikki feeds/kenzok8/nikki feeds/kenzok8/luci-app-fchomo feeds/kenzok8/fchomo feeds/kenzok8/luci-app-momo feeds/kenzok8/momo feeds/kenzok8/mihomo feeds/kenzok8/luci-app-mihomo || true
+            
           # 设置默认主题为 argon（必须在 feeds install 之后执行）
           sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
           make defconfig
@@ -129,15 +134,6 @@ jobs:
             grep -q "CONFIG_PACKAGE_${pkg}=y" .config || echo "CONFIG_PACKAGE_${pkg}=y" >> .config
           done
           # 第二次 defconfig：让构建系统自动补全新增包的依赖
-          make defconfig
-
-          # 强制禁用容易编译失败的包（如 MosDNS, Xray，依附于 SSR Plus 且 defconfig 可能会自动恢复它）
-          echo "🔧 强制清除故障包配置..."
-          sed -i 's/CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y/# CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS is not set/g' .config
-          sed -i 's/CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y/# CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray is not set/g' .config
-          sed -i 's/CONFIG_PACKAGE_mosdns=y/# CONFIG_PACKAGE_mosdns is not set/g' .config
-          sed -i 's/CONFIG_PACKAGE_luci-app-mosdns=y/# CONFIG_PACKAGE_luci-app-mosdns is not set/g' .config
-          sed -i 's/CONFIG_PACKAGE_xray-core=y/# CONFIG_PACKAGE_xray-core is not set/g' .config
           make defconfig
 
           # 验证关键包状态（仅警告，不中断编译）
