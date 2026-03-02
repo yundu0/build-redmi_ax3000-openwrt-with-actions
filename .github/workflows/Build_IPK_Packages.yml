@@ -80,6 +80,14 @@ jobs:
         working-directory: openWRT
         run: |
           ./scripts/feeds update -a
+          
+          # 移除官方的可能与 kenzok8/small 冲突的包 (不移除 mosdns)
+          rm -rf feeds/packages/net/{alist,adguardhome,xray*,v2ray*,v2ray*,sing*,smartdns}
+          rm -rf feeds/packages/utils/v2dat
+          # 替换 golang 为官方最新版以避免编译错误 (指定 1.26 分支)
+          rm -rf feeds/packages/lang/golang
+          git clone https://github.com/kenzok8/golang -b 1.26 feeds/packages/lang/golang
+
           ./scripts/feeds install -a
           
           # 动态安装用户请求的特定包
