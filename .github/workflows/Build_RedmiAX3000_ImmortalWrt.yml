@@ -131,17 +131,15 @@ jobs:
 
           # 强制注入关键包（defconfig 可能因依赖解析而静默禁用它们）
           echo "🔧 强制注入关键包到 .config..."
-          for pkg in luci-app-ssr-plus luci-theme-argon luci-app-easymesh; do
+          for pkg in luci-theme-argon luci-app-easymesh; do
             sed -i "s/# CONFIG_PACKAGE_${pkg} is not set/CONFIG_PACKAGE_${pkg}=y/" .config
             grep -q "CONFIG_PACKAGE_${pkg}=y" .config || echo "CONFIG_PACKAGE_${pkg}=y" >> .config
           done
           # 第二次 defconfig：让构建系统自动补全新增包的依赖
           make defconfig
 
-          # 强制禁用容易编译失败的包（如 MosDNS, Xray，依附于 SSR Plus 且 defconfig 可能会自动恢复它）
+          # 强制禁用容易编译失败的包（防手欠勾选）
           echo "🔧 强制清除故障包配置..."
-          sed -i 's/CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS=y/# CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_MosDNS is not set/g' .config
-          sed -i 's/CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray=y/# CONFIG_PACKAGE_luci-app-ssr-plus_INCLUDE_Xray is not set/g' .config
           sed -i 's/CONFIG_PACKAGE_mosdns=y/# CONFIG_PACKAGE_mosdns is not set/g' .config
           sed -i 's/CONFIG_PACKAGE_luci-app-mosdns=y/# CONFIG_PACKAGE_luci-app-mosdns is not set/g' .config
           sed -i 's/CONFIG_PACKAGE_xray-core=y/# CONFIG_PACKAGE_xray-core is not set/g' .config
@@ -149,7 +147,7 @@ jobs:
 
           # 验证关键包状态（仅警告，不中断编译）
           echo "🔍 验证 make defconfig 后关键包状态："
-          for pkg in luci-app-ssr-plus luci-theme-argon luci-app-easymesh; do
+          for pkg in luci-theme-argon luci-app-easymesh; do
             if grep -q "CONFIG_PACKAGE_${pkg}=y" .config; then
               echo "  ✅ ${pkg}"
             else
