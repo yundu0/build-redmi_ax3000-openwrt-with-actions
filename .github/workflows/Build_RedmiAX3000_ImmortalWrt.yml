@@ -107,6 +107,11 @@ jobs:
           else
             echo "❌ 警告：仓库中没有 .config 文件！将使用默认配置。"
           fi
+          if [ -f "110-fstools-cr881x-overlay-on-mtd20-userdata.patch" ]; then
+            echo "✅ 检测到 fstools 自定义补丁，正在覆盖..."
+            mkdir -p openWRT/package/system/fstools/patches
+            cp 110-fstools-cr881x-overlay-on-mtd20-userdata.patch openWRT/package/system/fstools/patches/
+          fi
 
       - name: 🔄 更新 Feeds & 生成配置
         working-directory: openWRT
