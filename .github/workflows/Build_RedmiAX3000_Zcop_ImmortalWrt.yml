@@ -30,6 +30,9 @@ on:
         description: "执行 diy.sh 自定义脚本"
         type: boolean
         default: true
+  push:
+    branches:
+      - build-zcop-immortalwrt
 
 env:
   TZ: Asia/Shanghai
@@ -74,19 +77,19 @@ jobs:
       - name: ⬇️ 克隆 OpenWrt 源码
         uses: actions/checkout@v4
         with:
-          repository: "${{ inputs.owner }}/${{ inputs.repo }}"
-          ref: ${{ inputs.branch }}
+          repository: "${{ inputs.owner || 'zcop' }}/${{ inputs.repo || 'immortalwrt' }}"
+          ref: ${{ inputs.branch || 'master' }}
           path: openWRT
 
       - name: 📂 加载自定义配置
         run: |
-          if [ "${{ inputs.use_files }}" = "true" ] && [ -d "files" ]; then
+          if [ "${{ inputs.use_files || 'true' }}" = "true" ] && [ -d "files" ]; then
             echo "✅ 检测到 files 目录，正在复制..."
             cp -r files openWRT/files
           else
             echo "⏭️ 跳过 files 目录复制"
           fi
-          if [ "${{ inputs.use_diy }}" = "true" ] && [ -f "diy.sh" ]; then
+          if [ "${{ inputs.use_diy || 'true' }}" = "true" ] && [ -f "diy.sh" ]; then
             echo "✅ 检测到 diy.sh，正在执行..."
             chmod +x diy.sh
             cp diy.sh openWRT/
