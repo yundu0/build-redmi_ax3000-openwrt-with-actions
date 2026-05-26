@@ -1,0 +1,317 @@
+name: 🚀 编译 Build_RedmiAX3000_Zcop_ImmortalWrt
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner:
+        description: "openWRT 仓库的拥有者"
+        type: string
+        required: true
+        default: "zcop"
+      repo:
+        description: "openWRT 仓库的名字"
+        type: string
+        required: true
+        default: "immortalwrt"
+      branch:
+        description: "openWRT 仓库的分支"
+        type: string
+        required: true
+        default: "master"
+      ssh:
+        description: "SSH 连接调试"
+        type: boolean
+        default: false
+      use_files:
+        description: "复制 files 自定义文件"
+        type: boolean
+        default: true
+      use_diy:
+        description: "执行 diy.sh 自定义脚本"
+        type: boolean
+        default: true
+
+env:
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    name: 🚀 编译 (Build)
+    permissions:
+      contents: write
+    
+    steps:
+      - name: ⬇️ 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🕒 设置构建时间
+        run: |
+          echo "BUILD_DATE=$(date +'%Y.%m.%d-%H%M')" >> $GITHUB_ENV
+
+      - name: 🧹 释放磁盘空间
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: true
+
+      - name: 📦 安装编译依赖
+        run: |
+          sudo apt update
+          sudo apt install -y ack antlr3 asciidoc autoconf automake autopoint binutils bison build-essential \
+          bzip2 ccache clang cmake cpio curl device-tree-compiler fastjar flex gawk gettext gcc-multilib g++-multilib \
+          git gnutls-dev gperf haveged help2man intltool libc6-dev-i386 libelf-dev libglib2.0-dev libgmp3-dev \
+          libltdl-dev libmpc-dev libmpfr-dev libncurses-dev libpython3-dev libreadline-dev libssl-dev libtool \
+          libyaml-dev libz-dev lld llvm lrzsz mkisofs msmtp nano ninja-build p7zip p7zip-full patch pkgconf \
+          python3 python3-pip python3-docutils qemu-utils re2c rsync scons squashfs-tools subversion swig \
+          texinfo uglifyjs upx-ucl unzip vim wget xmlto xxd zlib1g-dev zstd
+
+      - name: ⬇️ 克隆 OpenWrt 源码
+        uses: actions/checkout@v4
+        with:
+          repository: "${{ inputs.owner }}/${{ inputs.repo }}"
+          ref: ${{ inputs.branch }}
+          path: openWRT
+
+      - name: 📂 加载自定义配置
+        run: |
+          if [ "${{ inputs.use_files }}" = "true" ] && [ -d "files" ]; then
+            echo "✅ 检测到 files 目录，正在复制..."
+            cp -r files openWRT/files
+          else
+            echo "⏭️ 跳过 files 目录复制"
+          fi
+          if [ "${{ inputs.use_diy }}" = "true" ] && [ -f "diy.sh" ]; then
+            echo "✅ 检测到 diy.sh，正在执行..."
+            chmod +x diy.sh
+            cp diy.sh openWRT/
+            cd openWRT
+            ./diy.sh
+            cd ..
+          else
+            echo "⏭️ 跳过 diy.sh 执行"
+          fi
+          if [ -f ".config" ]; then
+            echo "✅ 检测到 .config，正在复制..."
+            cp .config openWRT/.config
+            echo "📊 .config 验证："
+            echo "   总行数: $(wc -l < openWRT/.config)"
+            echo "   已启用包数: $(grep -c '^CONFIG_PACKAGE_.*=y' openWRT/.config)"
+            echo "   关键包状态："
+            grep -E 'CONFIG_PACKAGE_(luci-app-ssr-plus|luci-theme-argon|luci-app-easymesh)' openWRT/.config || echo "   ⚠️ 关键包未找到！"
+          else
+            echo "❌ 警告：仓库中没有 .config 文件！将使用默认配置。"
+          fi
+          if [ -f "110-fstools-cr881x-overlay-on-mtd20-userdata.patch" ]; then
+            echo "✅ 检测到 fstools 自定义补丁，正在覆盖..."
+            mkdir -p openWRT/package/system/fstools/patches
+            cp 110-fstools-cr881x-overlay-on-mtd20-userdata.patch openWRT/package/system/fstools/patches/
+          fi
+
+      - name: 🔄 更新 Feeds & 生成配置
+        working-directory: openWRT
+        run: |
+          ./scripts/feeds update -a
+          # 移除官方的可能与 kenzok8/small 冲突 of 的包 (不移除 mosdns)
+          rm -rf feeds/packages/net/{alist,adguardhome,xray*,v2ray*,v2ray*,sing*,smartdns}
+          rm -rf feeds/packages/utils/v2dat
+          ./scripts/feeds install -a
+          
+          # 显式安装第三方包，确保 make defconfig 前已注册到构建系统
+          ./scripts/feeds install -p small luci-app-ssr-plus || true
+          ./scripts/feeds install -p kenzok8 luci-app-ddns-go \
+            luci-app-easymesh luci-app-argon-config luci-theme-argon luci-app-ttyd \
+            luci-app-cpufreq luci-app-filemanager luci-app-package-manager || true
+          # 设置默认主题为 argon（必须在 feeds install 之后执行）
+          sed -i 's/luci-theme-bootstrap/luci-theme-argon/g' feeds/luci/collections/luci/Makefile
+          make defconfig
+
+          # 强制注入关键包（defconfig 可能因依赖解析而静默禁用它们）
+          echo "🔧 强制注入关键包到 .config..."
+          for pkg in luci-theme-argon luci-app-easymesh luci-i18n-base-zh-cn; do
+            sed -i "s/# CONFIG_PACKAGE_${pkg} is not set/CONFIG_PACKAGE_${pkg}=y/" .config
+            grep -q "CONFIG_PACKAGE_${pkg}=y" .config || echo "CONFIG_PACKAGE_${pkg}=y" >> .config
+          done
+          # 第二次 defconfig：让构建系统自动补全新增包的依赖
+          make defconfig
+
+          # 强制禁用容易编译失败的包（防手欠勾选）
+          echo "🔧 强制清除故障包配置..."
+          sed -i 's/CONFIG_PACKAGE_mosdns=y/# CONFIG_PACKAGE_mosdns is not set/g' .config
+          sed -i 's/CONFIG_PACKAGE_luci-app-mosdns=y/# CONFIG_PACKAGE_luci-app-mosdns is not set/g' .config
+          sed -i 's/CONFIG_PACKAGE_xray-core=y/# CONFIG_PACKAGE_xray-core is not set/g' .config
+          make defconfig
+          
+          # 注意：ath11k-firmware-ipq5018 是此设备的默认包，必须在 make defconfig 之后强制禁用以防止它被重新勾选
+          sed -i 's/CONFIG_PACKAGE_ath11k-firmware-ipq5018=y/# CONFIG_PACKAGE_ath11k-firmware-ipq5018 is not set/g' .config
+
+          # 验证关键包状态（仅警告，不中断编译）
+          echo "🔍 验证 make defconfig 后关键包状态："
+          for pkg in luci-theme-argon luci-app-easymesh luci-i18n-base-zh-cn; do
+            if grep -q "CONFIG_PACKAGE_${pkg}=y" .config; then
+              echo "  ✅ ${pkg}"
+            else
+              echo "  ⚠️ ${pkg} 未启用（包可能在当前平台不兼容）"
+            fi
+          done
+
+      - name: 💾 缓存 DL 目录
+        uses: actions/cache@v4
+        with:
+          path: openWRT/dl
+          key: openwrt-dl-${{ hashFiles('openWRT/.config') }}
+          restore-keys: |
+            openwrt-dl-
+
+      - name: ⬇️ 下载软件包
+        working-directory: openWRT
+        run: |
+          make download -j8
+          find dl -size -1024c -exec ls -l {} \;
+          find dl -size -1024c -exec rm -f {} \;
+
+      - name: 📝 设置 SSH 欢迎信息 & 保存配置快照
+        if: ${{ inputs.ssh }}
+        working-directory: openWRT
+        run: |
+          # 保存 SSH 前的 .config 快照，用于事后对比
+          grep '^CONFIG_PACKAGE_.*=y' .config | sort > /tmp/config_before_ssh.txt
+          echo "📸 已保存 SSH 前配置快照（$(wc -l < /tmp/config_before_ssh.txt) 个包启用）"
+
+          cat >> ~/.bashrc << 'EOF'
+          echo ""
+          echo "============================================"
+          echo "  🚀 OpenWrt 编译环境 - SSH 调试模式"
+          echo "============================================"
+          echo "  源码目录:  cd openWRT"
+          echo "  配置菜单:  make menuconfig"
+          echo "  补全配置:  make defconfig"
+          echo "  手动继续:  touch ~/continue && exit"
+          echo "  ⏰ 提示:  30分钟无操作将自动继续编译"
+          echo "============================================"
+          echo ""
+          EOF
+
+      - name: 📡 SSH 连接调试
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ inputs.ssh }}
+        timeout-minutes: 30
+        continue-on-error: true
+
+      - name: 📋 打印 SSH 配置变更
+        if: ${{ inputs.ssh }}
+        working-directory: openWRT
+        run: |
+          grep '^CONFIG_PACKAGE_.*=y' .config | sort > /tmp/config_after_ssh.txt
+          ADDED=$(comm -13 /tmp/config_before_ssh.txt /tmp/config_after_ssh.txt)
+          REMOVED=$(comm -23 /tmp/config_before_ssh.txt /tmp/config_after_ssh.txt)
+          echo "📋 SSH 操作后配置变更："
+          if [ -n "$ADDED" ]; then
+            echo "  ✅ 新增的包："
+            echo "$ADDED" | sed 's/CONFIG_PACKAGE_//;s/=y//' | sed 's/^/    + /'
+          else
+            echo "  （无新增包）"
+          fi
+          if [ -n "$REMOVED" ]; then
+            echo "  ❌ 移除的包："
+            echo "$REMOVED" | sed 's/CONFIG_PACKAGE_//;s/=y//' | sed 's/^/    - /'
+          else
+            echo "  （无移除包）"
+          fi
+
+      - name: 💾 缓存 ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ hashFiles('openWRT/.config') }}-${{ env.BUILD_DATE }}
+          restore-keys: |
+            ccache-${{ hashFiles('openWRT/.config') }}-
+            ccache-
+
+      - name: 🚀 开始编译
+        working-directory: openWRT
+        run: |
+          export PATH="/usr/lib/ccache:$PATH"
+          ccache -z
+          
+          # 🐛 针对 Rust 1.90.0 编译 Bug 的热修复守护进程
+          # immortalwrt 源码中 rust vendor 缺失诸多包的 Cargo.toml.orig，导致校验失败中断
+          # 启动后台任务：一旦解压出相关目录，不断清理掉 checksum 中的对应记录
+          (
+            while true; do
+              find build_dir/ -path "*/vendor/*/.cargo-checksum.json" 2>/dev/null | while read -r file; do
+                if grep -q '"Cargo.toml.orig"' "$file"; then
+                  sed -i 's/"Cargo.toml.orig":"[^"]*",\?//g' "$file"
+                  sed -i 's/,"Cargo.toml.orig":"[^"]*"//g' "$file"
+                  echo "✅ 已修复 checksum BUG: $file"
+                fi
+              done
+              sleep 2
+            done
+          ) &
+          FIX_PID=$!
+
+          echo "=== 编译开始: $(date) ==="
+          START_TIME=$(date +%s)
+          # 注意：失败时重新跑单线程打印详细日志
+          make -j$(nproc) || make -j1 V=s
+          END_TIME=$(date +%s)
+          
+          # 编译结束后关闭守护进程
+          kill $FIX_PID || true
+          
+          ELAPSED=$(( END_TIME - START_TIME ))
+          echo "=== 编译结束: $(date) ==="
+          echo "⏱️ 编译耗时: $(( ELAPSED / 3600 ))h $(( (ELAPSED % 3600) / 60 ))m $(( ELAPSED % 60 ))s"
+          ccache -s
+
+      - name: 📦 整理编译产物
+        id: organize
+        if: success()
+        run: |
+          mkdir -p firmware
+          # 收集所有常见固件格式（排除 packages 目录和构建信息文件）
+          find openWRT/bin/targets -type f \
+            \( -name "*.bin" \
+            -o -name "*.img.gz" \
+            -o -name "*.ubi" \
+            -o -name "*.tar.gz" \
+            -o -name "*.itb" \
+            -o -name "*.trx" \) \
+            ! -path "*/packages/*" \
+            -exec cp {} firmware/ \;
+          cp openWRT/.config firmware/build.config
+          FILE_COUNT=$(ls firmware/ | wc -l)
+          echo "📦 共整理 ${FILE_COUNT} 个文件:"
+          ls -lh firmware/
+          if [ "$FILE_COUNT" -le 1 ]; then
+            echo "⚠️ 警告: 未发现固件文件，仅有 build.config"
+          fi
+          cd firmware && sha256sum * > sha256sums.txt && cd ..
+          echo "status=success" >> $GITHUB_OUTPUT
+
+      - name: 📤 上传固件
+        uses: actions/upload-artifact@v4
+        if: steps.organize.outputs.status == 'success'
+        with:
+          name: OpenWrt_Firmware
+          path: firmware/
+
+      - name: 🎉 发布 Release
+        uses: softprops/action-gh-release@v2
+        if: steps.organize.outputs.status == 'success'
+        with:
+          tag_name: Release-${{ env.BUILD_DATE }}
+          files: firmware/*
+          body: |
+            **编译状态**: ✅ 成功
+            **源码仓库**: `${{ inputs.owner }}/${{ inputs.repo }}`
+            **分支**: `${{ inputs.branch }}`
+            **时间**: ${{ env.BUILD_DATE }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
