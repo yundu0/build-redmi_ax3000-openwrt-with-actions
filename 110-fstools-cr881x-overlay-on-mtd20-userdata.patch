@@ -1,12 +1,13 @@
 --- a/mount_root.c
 +++ b/mount_root.c
-@@ -15,8 +15,13 @@
+@@ -14,12 +14,258 @@
+ #include <sys/mount.h>
  #include <sys/types.h>
  #include <sys/stat.h>
  #include <unistd.h>
-+#include <dirent.h>
  #include <stdio.h>
  #include <stdlib.h>
++#include <dirent.h>
 +#include <string.h>
 +#include <stdbool.h>
 +#include <limits.h>
@@ -14,9 +15,8 @@
  
  #include <libubox/ulog.h>
  
-@@ -24,6 +29,249 @@
+ #include "libfstools/libfstools.h"
  #include "libfstools/volume.h"
- #include "libfstools/common.h"
  
 +#define DT_COMPATIBLE_PATH      "/proc/device-tree/compatible"
 +#define PROC_MTD_PATH           "/proc/mtd"
@@ -261,27 +261,24 @@
 +	return volume_find("rootfs_data");
 +}
 +
- #define BUFLEN 64
- 
- /*
-@@ -42,7 +290,7 @@ start(int argc, char *argv[3])
- 	if (get_var_from_file("/proc/cmdline", "fstools_overlay_name", dataparam, sizeof(dataparam)))
- 		dataname = dataparam;
- 
--	data = volume_find(dataname);
-+	data = overlay_volume_find_start(dataname);
++@@ -30,8 +278,8 @@
+ static int
+ start(int argc, char *argv[3])
+ {
+ 	struct volume *root;
+-	struct volume *data = volume_find("rootfs_data");
++	struct volume *data = overlay_volume_find_start("rootfs_data");
+ 	struct stat s;
  
  	if (!getenv("PREINIT") && stat("/tmp/.preinit", &s))
- 		return -1;
-@@ -71,6 +319,7 @@ start(int argc, char *argv[3])
+@@ -59,6 +307,7 @@
  
  	/* There isn't extroot, so just try to mount "rootfs_data" */
  	volume_init(data);
 +	overlay_volume_fixup(data);
  	switch (volume_identify(data)) {
  	case FS_NONE:
- 		ULOG_WARN("no usable overlay filesystem found, using tmpfs overlay\n");
-@@ -115,7 +364,7 @@ stop(int argc, char *argv[1])
+@@ -105,7 +354,7 @@
  static int
  done(int argc, char *argv[1])
  {
