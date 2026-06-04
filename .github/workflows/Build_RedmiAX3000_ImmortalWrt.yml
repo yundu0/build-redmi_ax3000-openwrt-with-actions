@@ -130,7 +130,7 @@ jobs:
           
           # 显式安装第三方包，确保 make defconfig 前已注册到构建系统
           ./scripts/feeds install -p small luci-app-ssr-plus || true
-          ./scripts/feeds install -p kenzo luci-app-ddns-go \
+          ./scripts/feeds install -p kenzok8 luci-app-ddns-go \
             luci-app-easymesh luci-app-argon-config luci-theme-argon luci-app-ttyd \
             luci-app-cpufreq luci-app-filemanager luci-app-package-manager || true
           # 设置默认主题为 argon（必须在 feeds install 之后执行）
